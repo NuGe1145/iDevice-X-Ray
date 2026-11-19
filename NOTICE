@@ -1,0 +1,26 @@
+iDevice X-Ray
+Copyright (c) 2026 iDevice X-Ray contributors
+
+This product includes techniques derived from the following projects.
+
+--------------------------------------------------------------------------
+MiniWatts — https://github.com/ResistanceTo/MiniWatts
+Licensed under the Apache License, Version 2.0.
+
+The method for reading the power management unit and the temperature matrix
+(IOHIDEventSystemClient on vendor usage pages 0xFF08 and 0xFF00, the
+single-client-per-process constraint, SMC key extraction from LocationID,
+and the practice of discarding implausible sensor values) is taken from
+MiniWatts. Our sensor zoning, plausibility filtering, report model and UI
+are this project's own.
+
+--------------------------------------------------------------------------
+ios-charging-monitor — https://github.com/gregsramblings/ios-charging-monitor
+Licensed under the MIT License.
+
+Upstream source for the dlsym-based IOKit access pattern.
+
+--------------------------------------------------------------------------
+The MIT License text above applies to this project. The Apache License 2.0
+applies to the portions derived from MiniWatts; a copy is available at
+http://www.apache.org/licenses/LICENSE-2.0
