@@ -2,6 +2,8 @@ import Foundation
 import UIKit
 
 /// 设备基础信息。全部来自公开 API + 机型库匹配。
+/// 标记 @MainActor 是因为 UIDevice 在 iOS 17 SDK 起受主线程隔离约束。
+@MainActor
 struct DeviceEngine {
 
     func collect(catalog: DeviceCatalog) -> [ReportField] {
