@@ -34,30 +34,44 @@ struct DisplayEngine {
             confidence: .verified
         ))
 
-        if let spec {
+        if let spec, let inches = spec.screenInches {
             fields.append(ReportField(
                 key: "display.size",
                 title: "屏幕尺寸",
-                value: String(format: "%.1f", spec.screenInches),
+                value: String(format: "%.1f", inches),
                 unit: "英寸",
                 source: .catalog,
                 confidence: .high
             ))
+        }
+
+        if let spec, let ppi = spec.ppi {
             fields.append(ReportField(
                 key: "display.ppi",
                 title: "像素密度",
-                value: "\(spec.ppi)",
+                value: "\(ppi)",
                 unit: "PPI",
                 source: .catalog,
                 confidence: .high
             ))
+        }
+
+        if let spec, let panel = spec.panelType {
             fields.append(ReportField(
                 key: "display.panel",
                 title: "面板类型",
-                value: spec.panelType,
+                value: panel,
                 source: .catalog,
                 confidence: .inferred,
                 note: "按机型推断，非面板自身上报，同型号不同批次可能不同"
+            ))
+        }
+
+        if let spec, !spec.hasDetailedSpecs {
+            fields.append(.unavailable(
+                key: "display.size",
+                title: "屏幕尺寸",
+                reason: "机型库只收录了 \(spec.name) 的名称，该机型的尺寸与 PPI 尚未核对；上方分辨率为系统实测值"
             ))
         }
 

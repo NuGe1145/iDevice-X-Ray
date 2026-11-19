@@ -23,3 +23,6 @@ screenshots/
 # Local secrets
 *.local.xcconfig
 Secrets.xcconfig
+
+# 机型库生成缓存
+Tools/cache/

@@ -3,7 +3,7 @@ import LocalAuthentication
 import UIKit
 
 /// 系统状态。热状态与低电量模式是真实可用的；CPU 温度没有公开 API，
-/// 因此这里用 thermalState 表达，而不是编一个温度数字。
+/// 由私有传感器分区回填，本机没有传感器通道时才留空并说明。
 @MainActor
 struct SystemEngine {
 
@@ -23,7 +23,7 @@ struct SystemEngine {
             key: "system.cpuTemperature",
             title: "CPU 温度",
             value: "",
-            reason: "iOS 未开放温度传感器接口，任何显示具体温度数值的 App 都来自估算"
+            reason: "公开 API 不提供 CPU 温度；本机私有传感器通道不可用时只能读热状态等级"
         ))
 
         fields.append(ReportField(

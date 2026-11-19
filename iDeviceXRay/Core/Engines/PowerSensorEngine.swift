@@ -25,6 +25,13 @@ struct PowerSensorEngine {
                 "私有 HID 接口实时读取 · \(battery.name)"
             )
         }
+        if let soc = snapshot.hottest(in: [.soc]) {
+            replacements["system.cpuTemperature"] = (
+                number(soc.value, digits: 1),
+                "°C",
+                "私有 HID 接口实时读取 · \(soc.name) · SMC \(soc.key)"
+            )
+        }
         if let voltage = snapshot.voltage("VP0u") ?? snapshot.voltage("VQ0l") {
             replacements["battery.voltage"] = (
                 number(voltage.value, digits: 2),
@@ -69,6 +76,8 @@ struct PowerSensorEngine {
         }
 
         let power = snapshot.power
+        let batteryVoltage = snapshot.voltage("VP0u") ?? snapshot.voltage("VQ0l")
+        let batteryCurrent = snapshot.current("IQ0B") ?? snapshot.current("IQ0l")
 
         if power.externalConnected {
             fields.append(ReportField(
@@ -90,7 +99,6 @@ struct PowerSensorEngine {
             ))
         }
 
-        // 适配器（充电器本身）
         if let name = power.adapterName, !name.isEmpty {
             fields.append(ReportField(
                 key: "power.adapter.name",
@@ -102,7 +110,7 @@ struct PowerSensorEngine {
             ))
         }
 
-        if let rated = power.adapterRatedWatts {
+        if let rated = power.adapterRatedWatts, rated > 0 {
             var note = "适配器标称上限，不是实测输入"
             if power.adapterProfileCount > 0 {
                 note += "；握手到 \(power.adapterProfileCount) 个电压档位"
@@ -118,54 +126,58 @@ struct PowerSensorEngine {
             ))
         }
 
-        // USB-C 输入端实测
-        let inputVoltage = snapshot.voltage("VQ0u") ?? snapshot.voltage("VP0u")
-        let inputCurrent = snapshot.current("IQ0u")
+        // 输入端：没插电时这两个通道会停在 0.01 V 之类的残值，
+        // 这不是读数而是「通道没工作」，所以按连接状态决定显示还是说明。
+        var inputWatts: Double?
+        if power.externalConnected {
+            let inputVoltage = snapshot.voltage("VQ0u")
+            let inputCurrent = snapshot.current("IQ0u")
 
-        var hasInputRail = false
-        if let inputVoltage {
-            hasInputRail = true
-            fields.append(ReportField(
-                key: "power.input.voltage",
-                title: "输入电压",
-                value: number(inputVoltage.value, digits: 2),
-                unit: "V",
-                source: .privateAPI,
-                confidence: .verified,
-                note: railNote(inputVoltage)
-            ))
-        }
-        if let inputCurrent {
-            hasInputRail = true
-            fields.append(ReportField(
-                key: "power.input.current",
-                title: "输入电流",
-                value: number(abs(inputCurrent.value), digits: 2),
-                unit: "A",
-                source: .privateAPI,
-                confidence: .verified,
-                note: railNote(inputCurrent)
-            ))
-        }
+            if let inputVoltage {
+                fields.append(ReportField(
+                    key: "power.input.voltage",
+                    title: "输入电压",
+                    value: number(inputVoltage.value, digits: 2),
+                    unit: "V",
+                    source: .privateAPI,
+                    confidence: .verified,
+                    note: railNote(inputVoltage)
+                ))
+            }
+            if let inputCurrent {
+                fields.append(ReportField(
+                    key: "power.input.current",
+                    title: "输入电流",
+                    value: number(abs(inputCurrent.value), digits: 2),
+                    unit: "A",
+                    source: .privateAPI,
+                    confidence: .verified,
+                    note: railNote(inputCurrent)
+                ))
+            }
 
-        let inputWatts = (inputVoltage?.value).flatMap { v in
-            inputCurrent.map { abs($0.value) * v }
+            if let voltage = inputVoltage?.value, let current = inputCurrent.map({ abs($0.value) }), current > 0.05 {
+                inputWatts = voltage * current
+                fields.append(ReportField(
+                    key: "power.input.watts",
+                    title: "输入功率",
+                    value: number(voltage * current, digits: 2),
+                    unit: "W",
+                    source: .privateAPI,
+                    confidence: .verified,
+                    note: "测点在 USB-C 口，VQ0u × IQ0u"
+                ))
+            } else {
+                fields.append(unavailable(
+                    "power.input.watts",
+                    "输入功率",
+                    "适配器已连接但未取电，输入通道读数接近零（已充满或握手未完成）"
+                ))
+            }
+        } else {
+            fields.append(unavailable("power.input.voltage", "输入电压", "未连接电源，输入通道不工作"))
+            fields.append(unavailable("power.input.watts", "输入功率", "未连接电源，没有输入功率可测"))
         }
-        if let inputWatts {
-            fields.append(ReportField(
-                key: "power.input.watts",
-                title: "输入功率",
-                value: number(inputWatts, digits: 2),
-                unit: "W",
-                source: .privateAPI,
-                confidence: .verified,
-                note: "测点在 USB-C 口，VQ0u × IQ0u"
-            ))
-        }
-
-        // 电池侧
-        let batteryVoltage = snapshot.voltage("VP0u") ?? snapshot.voltage("VQ0l")
-        let batteryCurrent = snapshot.current("IQ0B") ?? snapshot.current("IQ0l")
 
         if let batteryVoltage {
             fields.append(ReportField(
@@ -178,7 +190,9 @@ struct PowerSensorEngine {
                 note: railNote(batteryVoltage)
             ))
         }
-        if let batteryCurrent {
+
+        var batteryWatts: Double?
+        if power.charging, let batteryCurrent, abs(batteryCurrent.value) > 0.02 {
             fields.append(ReportField(
                 key: "power.battery.current",
                 title: "充入电池电流",
@@ -188,20 +202,29 @@ struct PowerSensorEngine {
                 confidence: .verified,
                 note: railNote(batteryCurrent)
             ))
-        }
-
-        let batteryWatts = (batteryVoltage?.value).flatMap { v in
-            batteryCurrent.map { abs($0.value) * v }
-        }
-        if let batteryWatts {
-            fields.append(ReportField(
-                key: "power.battery.watts",
-                title: "充入电池功率",
-                value: number(batteryWatts, digits: 2),
-                unit: "W",
-                source: .privateAPI,
-                confidence: .verified,
-                note: "VP0u × IQ0B"
+            if let voltage = batteryVoltage?.value {
+                batteryWatts = voltage * abs(batteryCurrent.value)
+                fields.append(ReportField(
+                    key: "power.battery.watts",
+                    title: "充入电池功率",
+                    value: number(voltage * abs(batteryCurrent.value), digits: 2),
+                    unit: "W",
+                    source: .privateAPI,
+                    confidence: .verified,
+                    note: "VP0u × IQ0B"
+                ))
+            }
+        } else if power.externalConnected {
+            fields.append(unavailable(
+                "power.battery.current",
+                "充入电池电流",
+                "已连接电源但当前未向电池充电（可能已充满或触发了温度保护）"
+            ))
+        } else {
+            fields.append(unavailable(
+                "power.battery.current",
+                "充入电池电流",
+                "未连接电源，电池处于放电状态；放电电流没有可读的传感器通道"
             ))
         }
 
@@ -222,7 +245,6 @@ struct PowerSensorEngine {
             ))
         }
 
-        // 标称与实测核对：这是二手验机最实用的一条
         if let rated = power.adapterRatedWatts, let inputWatts, rated > 0 {
             let ratio = inputWatts / rated
             let verdict: String
@@ -245,10 +267,6 @@ struct PowerSensorEngine {
                 confidence: confidence,
                 note: "实测 \(number(inputWatts, digits: 1)) W / 标称 \(number(rated, digits: 0)) W = \(number(ratio * 100, digits: 0))%"
             ))
-        }
-
-        if power.externalConnected && !hasInputRail {
-            fields.append(unavailable("power.input.watts", "输入功率", "适配器已连接，但 USB-PD 通道未上报电压电流"))
         }
 
         return ReportSection(key: "power", title: "充电与功率", symbol: "bolt.fill", accentHex: 0xFBBF24, fields: fields)

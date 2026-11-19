@@ -51,17 +51,17 @@ struct DeviceEngine {
             confidence: .verified
         ))
 
-        if let spec {
+        if let chip = spec?.chip, !chip.isEmpty {
             fields.append(ReportField(
                 key: "device.chip",
                 title: "芯片",
-                value: spec.chip,
+                value: chip,
                 source: .catalog,
                 confidence: .inferred,
-                note: "芯片型号无法由系统 API 读取，按机型推断"
+                note: "芯片型号无法由系统 API 读取，按机型库匹配"
             ))
         } else {
-            fields.append(.unavailable(key: "device.chip", title: "芯片", reason: "机型未收录，无法推断芯片型号"))
+            fields.append(.unavailable(key: "device.chip", title: "芯片", reason: "机型库未收录该机型的芯片信息"))
         }
 
         if let perf = Sysctl.int("hw.perflevel0.physicalcpu"),
@@ -87,11 +87,11 @@ struct DeviceEngine {
         }
 
         // 内存：优先机型库标称值，实时物理内存作为交叉验证
-        if let spec {
+        if let spec, let ramGB = spec.ramGB {
             fields.append(ReportField(
                 key: "device.memory",
                 title: "运行内存",
-                value: "\(spec.ramGB)",
+                value: "\(ramGB)",
                 unit: "GB",
                 source: .catalog,
                 confidence: .high,
@@ -145,13 +145,24 @@ struct DeviceEngine {
             note: "据此可推算设备启动时间"
         ))
 
-        if let spec {
+        if let year = spec?.releaseYear {
             fields.append(ReportField(
                 key: "device.releaseYear",
                 title: "发布年份",
-                value: "\(spec.releaseYear)",
+                value: "\(year)",
                 source: .catalog,
                 confidence: .high
+            ))
+        }
+
+        if let models = spec?.modelNumbers, !models.isEmpty {
+            fields.append(ReportField(
+                key: "device.modelNumbers",
+                title: "销售型号",
+                value: models.joined(separator: " / "),
+                source: .catalog,
+                confidence: .high,
+                note: "机身上的 A 编号（设置 › 通用 › 关于本机 › 型号），用于核对是否为同款"
             ))
         }
 

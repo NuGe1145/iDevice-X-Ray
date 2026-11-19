@@ -1,39 +1,47 @@
 import Foundation
 import Observation
 
-/// 单个机型的静态规格。这些数值无法从系统 API 读取，只能靠型号库匹配，
-/// 因此每一条都标记为 `.catalog` / `.inferred`。
+/// 单个机型的静态规格。
+///
+/// 字段大量为可选：机型名称与芯片来自 AppleDB（全覆盖），而屏幕尺寸、PPI、
+/// 电池设计容量这类参数没有公开数据源，只能逐个机型人工核对。没核对过的就是
+/// nil，界面显示「未收录」并说明原因 —— 不用推断值把它填满。
 public struct DeviceSpec: Codable, Identifiable, Hashable, Sendable {
     public var id: String { identifier }
 
     public let identifier: String        // "iPhone17,1"
     public let name: String              // "iPhone 16 Pro"
     public let family: String            // "iPhone" / "iPad"
-    public let chip: String              // "A18 Pro"
-    public let ramGB: Int
-    public let screenInches: Double
-    public let nativeWidth: Int
-    public let nativeHeight: Int
-    public let ppi: Int
-    public let refreshRate: Int
-    public let panelType: String         // "OLED (LTPO)" / "LCD"
+    public let chip: String?             // "A18 Pro"
+    public let ramGB: Int?
+    public let screenInches: Double?
+    public let nativeWidth: Int?
+    public let nativeHeight: Int?
+    public let ppi: Int?
+    public let refreshRate: Int?
+    public let panelType: String?
     public let batteryDesignMah: Int?
-    public let releaseYear: Int
+    public let releaseYear: Int?
+    public let modelNumbers: [String]?   // "A3256" 等销售型号
+    /// "curated" = 规格经人工核对；"name-only" = 只知道名字与芯片
+    public let specSource: String?
 
     public init(
         identifier: String,
         name: String,
         family: String,
-        chip: String,
-        ramGB: Int,
-        screenInches: Double,
-        nativeWidth: Int,
-        nativeHeight: Int,
-        ppi: Int,
-        refreshRate: Int,
-        panelType: String,
-        batteryDesignMah: Int?,
-        releaseYear: Int
+        chip: String? = nil,
+        ramGB: Int? = nil,
+        screenInches: Double? = nil,
+        nativeWidth: Int? = nil,
+        nativeHeight: Int? = nil,
+        ppi: Int? = nil,
+        refreshRate: Int? = nil,
+        panelType: String? = nil,
+        batteryDesignMah: Int? = nil,
+        releaseYear: Int? = nil,
+        modelNumbers: [String]? = nil,
+        specSource: String? = nil
     ) {
         self.identifier = identifier
         self.name = name
@@ -48,10 +56,15 @@ public struct DeviceSpec: Codable, Identifiable, Hashable, Sendable {
         self.panelType = panelType
         self.batteryDesignMah = batteryDesignMah
         self.releaseYear = releaseYear
+        self.modelNumbers = modelNumbers
+        self.specSource = specSource
     }
+
+    /// 屏幕与电池这类需要人工核对的参数是否齐全
+    public var hasDetailedSpecs: Bool { ppi != nil }
 }
 
-/// 机型库。离线内置，随版本更新。
+/// 机型库。离线内置，随版本更新；由 `Tools/build_catalog.py` 生成。
 @Observable
 public final class DeviceCatalog {
     public static let shared = DeviceCatalog()
@@ -88,6 +101,11 @@ public final class DeviceCatalog {
 
     public func spec(for identifier: String) -> DeviceSpec? {
         index[identifier]
+    }
+
+    /// 只认识名字、没有核对过屏幕与电池参数的机型
+    public func hasDetailedSpecs(_ identifier: String) -> Bool {
+        index[identifier]?.hasDetailedSpecs ?? false
     }
 
     public func search(_ keyword: String) -> [DeviceSpec] {

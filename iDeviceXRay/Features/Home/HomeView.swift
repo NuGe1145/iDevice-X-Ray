@@ -7,6 +7,7 @@ struct HomeView: View {
     @State private var latest: ScanReport?
     @State private var sheet: HomeSheet?
     @State private var didAutoScan = false
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
         NavigationStack {
@@ -26,6 +27,8 @@ struct HomeView: View {
             }
             .sheet(item: $sheet) { item in
                 sheetContent(item)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
             }
         }
     }
@@ -181,7 +184,7 @@ struct HomeView: View {
                 }
             }
 
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 148), spacing: 10)], spacing: 10) {
+            LazyVGrid(columns: quickColumns, spacing: 10) {
                 ForEach(QuickLink.all) { link in
                     Button {
                         open(link)
@@ -192,6 +195,12 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    /// 固定列数而不是自适应：自适应在 iPad 上会排成 5 + 3，两行不等宽很难看
+    private var quickColumns: [GridItem] {
+        let count = sizeClass == .compact ? 2 : 4
+        return Array(repeating: GridItem(.flexible(), spacing: 10), count: count)
     }
 
     private func quickLinkCell(_ link: QuickLink) -> some View {
