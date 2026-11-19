@@ -63,8 +63,12 @@ final class GzipStreamDecoder {
     private var finished = false
 
     init() throws {
-        // 参数顺序必须与 C 结构体声明一致：dst_ptr, dst_size, src_ptr, src_size, state
-        stream = compression_stream(dst_ptr: nil, dst_size: 0, src_ptr: nil, src_size: 0, state: nil)
+        // 参数顺序必须与 C 结构体声明一致：dst_ptr, dst_size, src_ptr, src_size, state。
+        // C 里 dst_ptr / src_ptr 是非空指针，构造时不能传 nil；这里用非空占位地址满足类型，
+        // 初始化阶段不会解引用，真正的缓冲区在每次 pump 前重新赋值。
+        let dst = UnsafeMutablePointer<UInt8>(bitPattern: 1)!
+        let src = UnsafePointer<UInt8>(bitPattern: 1)!
+        stream = compression_stream(dst_ptr: dst, dst_size: 0, src_ptr: src, src_size: 0, state: nil)
         guard compression_stream_init(&stream, COMPRESSION_STREAM_DECODE, COMPRESSION_ZLIB) == COMPRESSION_STATUS_OK else {
             throw GzipError.cannotInit
         }
@@ -111,7 +115,7 @@ final class GzipStreamDecoder {
 
         try input.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
             guard let base = raw.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
-            stream.src_ptr = base
+            stream.src_ptr = UnsafePointer(base)
             stream.src_size = input.count
 
             var iterations = 0
