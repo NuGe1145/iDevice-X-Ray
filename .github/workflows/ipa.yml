@@ -1,0 +1,90 @@
+name: IPA
+
+# 推 main 只跑 ci.yml（编译 + 单测）。这个工作流负责出可安装的产物：
+#   - 打 v* 标签：构建未签名 ipa 并发布到 Release
+#   - 手动触发：只构建、只上传 artifact，不发布
+#
+# 发版就一步：git tag v0.2.0 && git push origin v0.2.0
+# 版本号从标签来，build number 从提交数来，project.yml 不用改。
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ipa:
+    name: Unsigned IPA
+    runs-on: macos-15-intel
+    timeout-minutes: 40
+    permissions:
+      # 只有标签触发的发布步骤用它
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 全量历史：build number 是提交数，浅克隆会让每次都是 1
+          fetch-depth: 0
+
+      - name: Select newest Xcode
+        run: |
+          newest=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "$newest"
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # 标签是版本：交给 build-ipa.sh，工程文件永远不用手改
+      - name: Take the version from the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: echo "MARKETING_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Build unsigned ipa
+        run: ./scripts/build-ipa.sh
+
+      # 版本只以 build setting 覆盖的方式进包。这条一旦失效，v0.2.0 会悄悄
+      # 发布一个自称 0.1.0 的包，所以验一遍。
+      - name: Check the ipa reports the tag's version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          work=$(mktemp -d)
+          unzip -q build/export/iDeviceXRay-unsigned.ipa -d "$work"
+          plist="$(ls -d "$work"/Payload/*.app)/Info.plist"
+          built=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")
+          echo "tag $GITHUB_REF_NAME -> ipa $built"
+          [ "$built" = "$MARKETING_VERSION" ] || {
+            echo "::error::ipa 里是 $built，标签是 $GITHUB_REF_NAME，MARKETING_VERSION 没进包"
+            exit 1
+          }
+
+      - name: Upload ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: iDeviceXRay-unsigned-ipa
+          path: build/export/iDeviceXRay-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Upload dSYM
+        uses: actions/upload-artifact@v4
+        with:
+          name: iDeviceXRay-dSYM
+          path: build/DerivedData/Build/Products/Release-iphoneos/*.dSYM
+          if-no-files-found: warn
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/export/iDeviceXRay-unsigned.ipa
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          # v0.2.0-beta1 这种带连字符的发成 pre-release
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            未签名构建，安装前请用自己的 Apple ID 重签（Sideloadly / AltStore / SideStore / Xcode）。
