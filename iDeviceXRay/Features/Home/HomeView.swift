@@ -335,6 +335,8 @@ struct QuickLink: Identifiable {
         QuickLink(key: "device", title: "设备概览", subtitle: "型号 · 芯片 · 内存", symbol: "iphone.gen3", accent: 0x22D3EE),
         QuickLink(key: "display", title: "屏幕信息", subtitle: "分辨率 · 像素密度", symbol: "display", accent: 0xA855F7),
         QuickLink(key: "battery", title: "电池状态", subtitle: "电量 · 充电 · 健康", symbol: "battery.75percent", accent: 0x34D399),
+        QuickLink(key: "power", title: "充电与功率", subtitle: "实测输入 · 效率", symbol: "bolt.fill", accent: 0xFBBF24),
+        QuickLink(key: "thermal", title: "温度传感器", subtitle: "全机测温点", symbol: "thermometer.medium", accent: 0xF87171),
         QuickLink(key: "storage", title: "存储分析", subtitle: "容量 · 使用率", symbol: "internaldrive", accent: 0xF59E0B),
         QuickLink(key: "system", title: "系统状态", subtitle: "热状态 · 运行时长", symbol: "cpu", accent: 0x60A5FA),
         QuickLink(key: "report", title: "诊断报告", subtitle: "完整体检报告", symbol: "doc.text.magnifyingglass", accent: 0xF472B6)

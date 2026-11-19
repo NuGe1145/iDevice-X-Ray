@@ -14,6 +14,7 @@ struct SettingsView: View {
         NavigationStack {
             PageContainer {
                 aboutCard
+                capabilityCard
                 privacyCard
                 dataCard
                 openSourceCard
@@ -48,8 +49,24 @@ struct SettingsView: View {
         }
     }
 
-    private var privacyCard: some View {
+    private var capabilityCard: some View {
         GlassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                SectionHeader(title: "私有接口", symbol: "bolt.horizontal.circle", accent: Theme.warning)
+
+                Text("本版本通过未公开的 IOKit 与 HID 接口读取电源轨道与全机温度传感器，因此只能自行签名侧载，无法上架 App Store。")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                privacyItem("仅限真机", "模拟器没有传感器服务，会显示为不可用", Theme.warning)
+                privacyItem("无需额外权限", "不需要描述文件或越狱，安装后直接可用", Theme.success)
+                privacyItem("读不到就不显示", "传感器名称与量程随机型变化，异常值会被丢弃并注明", Theme.cyan)
+            }
+        }
+    }
+
+    private var privacyCard: some View {        GlassCard {
             VStack(alignment: .leading, spacing: 10) {
                 SectionHeader(title: "隐私", symbol: "lock.shield", accent: Theme.success)
 
@@ -109,12 +126,12 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 12) {
                 SectionHeader(title: "开源", symbol: "chevron.left.forwardslash.chevron.right", accent: Theme.primaryLight)
 
-                Text("本项目以 MIT 协议开源。机型规格库欢迎提交 PR 补充新机型；诊断档案的字段映射表需要真机样本持续校准。")
+                Text("本项目以 MIT 协议开源。机型规格库与传感器字段映射表都欢迎提交真机样本修正——温度通道的名字与量程在不同机型上并不一致。")
                     .font(.system(size: 11))
                     .foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Link(destination: URL(string: "https://github.com")!) {
+                Link(destination: URL(string: "https://github.com/NuGe1145/iDevice-X-Ray")!) {
                     HStack {
                         Image(systemName: "link")
                         Text("在 GitHub 上查看")
@@ -134,7 +151,7 @@ struct SettingsView: View {
             Text("免责声明")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(Theme.textSecondary)
-            Text("本 App 为设备信息工具，不提供维修建议。电池健康度、循环次数等指标依赖系统诊断档案，解析结果可能存在偏差，不能作为二手交易的唯一依据。")
+            Text("本 App 为设备信息工具，不提供维修建议。电源与温度读数来自系统私有接口，传感器名称、量程与存在性随机型变化，不同机型可能缺失或含义不同。电池健康度、循环次数依赖系统诊断档案，解析结果可能存在偏差。以上均不能作为二手交易的唯一依据。")
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)

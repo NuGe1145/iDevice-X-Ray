@@ -7,6 +7,7 @@ import Foundation
 
 public enum DataSource: String, Codable, Hashable, CaseIterable, Sendable {
     case live          // 直接从系统 API 实时读取
+    case privateAPI    // 通过私有 IOKit / HID 接口读取（仅侧载版）
     case sysdiagnose   // 由用户导入的诊断档案解析
     case catalog       // 由机型规格库匹配
     case manual        // 用户手动录入
@@ -14,6 +15,7 @@ public enum DataSource: String, Codable, Hashable, CaseIterable, Sendable {
     public var displayName: String {
         switch self {
         case .live: return "实时读取"
+        case .privateAPI: return "私有接口"
         case .sysdiagnose: return "诊断档案"
         case .catalog: return "机型库"
         case .manual: return "手动录入"
@@ -23,6 +25,7 @@ public enum DataSource: String, Codable, Hashable, CaseIterable, Sendable {
     public var symbolName: String {
         switch self {
         case .live: return "waveform.path.ecg"
+        case .privateAPI: return "bolt.horizontal.circle"
         case .sysdiagnose: return "doc.text.magnifyingglass"
         case .catalog: return "books.vertical.fill"
         case .manual: return "square.and.pencil"

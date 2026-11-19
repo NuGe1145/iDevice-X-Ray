@@ -15,20 +15,21 @@ final class ScanCoordinator {
         progress = 0
 
         let steps: [(String, Double)] = [
-            ("读取设备标识与芯片信息", 0.15),
-            ("读取屏幕与显示参数", 0.35),
-            ("读取电池、存储与系统状态", 0.6),
-            ("核对机型库并标注来源", 0.8),
-            ("生成体检报告", 0.95)
+            ("读取设备标识与芯片信息", 0.12),
+            ("读取屏幕与显示参数", 0.28),
+            ("读取电池、存储与系统状态", 0.46),
+            ("读取电源与温度传感器", 0.68),
+            ("核对机型库并标注来源", 0.85),
+            ("生成体检报告", 0.96)
         ]
 
         for (title, value) in steps {
             stageText = title
             progress = value
-            try? await Task.sleep(nanoseconds: 180_000_000)
+            try? await Task.sleep(nanoseconds: 160_000_000)
         }
 
-        let report = build(mode: mode, catalog: catalog, deep: deep)
+        let report = await build(mode: mode, catalog: catalog, deep: deep)
 
         progress = 1
         stageText = "扫描完成"
@@ -37,7 +38,7 @@ final class ScanCoordinator {
     }
 
     @MainActor
-    private func build(mode: ScanMode, catalog: DeviceCatalog, deep: DeepScanResult?) -> ScanReport {
+    private func build(mode: ScanMode, catalog: DeviceCatalog, deep: DeepScanResult?) async -> ScanReport {
         let identifier = DeviceIdentity.identifier
         let spec = catalog.spec(for: identifier)
 
@@ -78,6 +79,12 @@ final class ScanCoordinator {
                 fields: SystemEngine().collect()
             )
         ]
+
+        // 私有接口采集：走 actor，保证全进程只有一个 HID client 在读数
+        let energy = await SensorProbe.shared.snapshot()
+        let sensorEngine = PowerSensorEngine()
+        sections = sensorEngine.backfill(sections, from: energy)
+        sections.append(contentsOf: sensorEngine.sections(from: energy))
 
         sections = DataFusion.merge(sections: sections, deep: deep)
 
