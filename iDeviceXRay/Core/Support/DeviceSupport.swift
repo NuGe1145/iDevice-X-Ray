@@ -63,6 +63,11 @@ enum Format {
         String(format: "%.1f GB", Double(value) / 1_000_000_000)
     }
 
+    /// 只要数字，不带单位（用于需要自己拼 unit 的字段）
+    static func gb(_ value: Int64) -> String {
+        String(format: "%.1f", Double(value) / 1_000_000_000)
+    }
+
     static func uptime(_ seconds: TimeInterval) -> String {
         let total = Int(seconds)
         let days = total / 86_400

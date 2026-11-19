@@ -63,8 +63,8 @@ final class GzipStreamDecoder {
     private var finished = false
 
     init() throws {
-        // 用零初始化构造，避免依赖 C 结构体的字段顺序（dst_ptr/dst_size/src_ptr/src_size/state）
-        stream = compression_stream()
+        // 参数顺序必须与 C 结构体声明一致：dst_ptr, dst_size, src_ptr, src_size, state
+        stream = compression_stream(dst_ptr: nil, dst_size: 0, src_ptr: nil, src_size: 0, state: nil)
         guard compression_stream_init(&stream, COMPRESSION_STREAM_DECODE, COMPRESSION_ZLIB) == COMPRESSION_STATUS_OK else {
             throw GzipError.cannotInit
         }
