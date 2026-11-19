@@ -1,0 +1,216 @@
+{
+  "version": "2026.01",
+  "note": "手工校对的机型规格子集，覆盖 iPhone 11 至 iPhone 16 系列与部分 iPad。所有数值以官方公开规格为准，社区可提交 PR 扩充。",
+  "devices": [
+    {
+      "identifier": "iPhone12,1", "name": "iPhone 11", "family": "iPhone",
+      "chip": "A13 Bionic", "ramGB": 4,
+      "screenInches": 6.1, "nativeWidth": 828, "nativeHeight": 1792, "ppi": 326,
+      "refreshRate": 60, "panelType": "LCD (Liquid Retina)", "batteryDesignMah": 3110, "releaseYear": 2019
+    },
+    {
+      "identifier": "iPhone12,3", "name": "iPhone 11 Pro", "family": "iPhone",
+      "chip": "A13 Bionic", "ramGB": 4,
+      "screenInches": 5.8, "nativeWidth": 1125, "nativeHeight": 2436, "ppi": 458,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 3046, "releaseYear": 2019
+    },
+    {
+      "identifier": "iPhone12,5", "name": "iPhone 11 Pro Max", "family": "iPhone",
+      "chip": "A13 Bionic", "ramGB": 4,
+      "screenInches": 6.5, "nativeWidth": 1242, "nativeHeight": 2688, "ppi": 458,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 3969, "releaseYear": 2019
+    },
+    {
+      "identifier": "iPhone12,8", "name": "iPhone SE (第 2 代)", "family": "iPhone",
+      "chip": "A13 Bionic", "ramGB": 3,
+      "screenInches": 4.7, "nativeWidth": 750, "nativeHeight": 1334, "ppi": 326,
+      "refreshRate": 60, "panelType": "LCD (Retina HD)", "batteryDesignMah": 1821, "releaseYear": 2020
+    },
+    {
+      "identifier": "iPhone13,1", "name": "iPhone 12 mini", "family": "iPhone",
+      "chip": "A14 Bionic", "ramGB": 4,
+      "screenInches": 5.4, "nativeWidth": 1080, "nativeHeight": 2340, "ppi": 476,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 2227, "releaseYear": 2020
+    },
+    {
+      "identifier": "iPhone13,2", "name": "iPhone 12", "family": "iPhone",
+      "chip": "A14 Bionic", "ramGB": 4,
+      "screenInches": 6.1, "nativeWidth": 1170, "nativeHeight": 2532, "ppi": 460,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 2815, "releaseYear": 2020
+    },
+    {
+      "identifier": "iPhone13,3", "name": "iPhone 12 Pro", "family": "iPhone",
+      "chip": "A14 Bionic", "ramGB": 6,
+      "screenInches": 6.1, "nativeWidth": 1170, "nativeHeight": 2532, "ppi": 460,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 2815, "releaseYear": 2020
+    },
+    {
+      "identifier": "iPhone13,4", "name": "iPhone 12 Pro Max", "family": "iPhone",
+      "chip": "A14 Bionic", "ramGB": 6,
+      "screenInches": 6.7, "nativeWidth": 1284, "nativeHeight": 2778, "ppi": 458,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 3687, "releaseYear": 2020
+    },
+    {
+      "identifier": "iPhone14,4", "name": "iPhone 13 mini", "family": "iPhone",
+      "chip": "A15 Bionic", "ramGB": 4,
+      "screenInches": 5.4, "nativeWidth": 1080, "nativeHeight": 2340, "ppi": 476,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 2406, "releaseYear": 2021
+    },
+    {
+      "identifier": "iPhone14,5", "name": "iPhone 13", "family": "iPhone",
+      "chip": "A15 Bionic", "ramGB": 4,
+      "screenInches": 6.1, "nativeWidth": 1170, "nativeHeight": 2532, "ppi": 460,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 3227, "releaseYear": 2021
+    },
+    {
+      "identifier": "iPhone14,2", "name": "iPhone 13 Pro", "family": "iPhone",
+      "chip": "A15 Bionic", "ramGB": 6,
+      "screenInches": 6.1, "nativeWidth": 1170, "nativeHeight": 2532, "ppi": 460,
+      "refreshRate": 120, "panelType": "OLED (ProMotion LTPO)", "batteryDesignMah": 3095, "releaseYear": 2021
+    },
+    {
+      "identifier": "iPhone14,3", "name": "iPhone 13 Pro Max", "family": "iPhone",
+      "chip": "A15 Bionic", "ramGB": 6,
+      "screenInches": 6.7, "nativeWidth": 1284, "nativeHeight": 2778, "ppi": 458,
+      "refreshRate": 120, "panelType": "OLED (ProMotion LTPO)", "batteryDesignMah": 4352, "releaseYear": 2021
+    },
+    {
+      "identifier": "iPhone14,6", "name": "iPhone SE (第 3 代)", "family": "iPhone",
+      "chip": "A15 Bionic", "ramGB": 4,
+      "screenInches": 4.7, "nativeWidth": 750, "nativeHeight": 1334, "ppi": 326,
+      "refreshRate": 60, "panelType": "LCD (Retina HD)", "batteryDesignMah": 2018, "releaseYear": 2022
+    },
+    {
+      "identifier": "iPhone14,7", "name": "iPhone 14", "family": "iPhone",
+      "chip": "A15 Bionic", "ramGB": 6,
+      "screenInches": 6.1, "nativeWidth": 1170, "nativeHeight": 2532, "ppi": 460,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 3279, "releaseYear": 2022
+    },
+    {
+      "identifier": "iPhone14,8", "name": "iPhone 14 Plus", "family": "iPhone",
+      "chip": "A15 Bionic", "ramGB": 6,
+      "screenInches": 6.7, "nativeWidth": 1284, "nativeHeight": 2778, "ppi": 458,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 4325, "releaseYear": 2022
+    },
+    {
+      "identifier": "iPhone15,2", "name": "iPhone 14 Pro", "family": "iPhone",
+      "chip": "A16 Bionic", "ramGB": 6,
+      "screenInches": 6.1, "nativeWidth": 1179, "nativeHeight": 2556, "ppi": 460,
+      "refreshRate": 120, "panelType": "OLED (ProMotion LTPO)", "batteryDesignMah": 3200, "releaseYear": 2022
+    },
+    {
+      "identifier": "iPhone15,3", "name": "iPhone 14 Pro Max", "family": "iPhone",
+      "chip": "A16 Bionic", "ramGB": 6,
+      "screenInches": 6.7, "nativeWidth": 1290, "nativeHeight": 2796, "ppi": 460,
+      "refreshRate": 120, "panelType": "OLED (ProMotion LTPO)", "batteryDesignMah": 4323, "releaseYear": 2022
+    },
+    {
+      "identifier": "iPhone15,4", "name": "iPhone 15", "family": "iPhone",
+      "chip": "A16 Bionic", "ramGB": 6,
+      "screenInches": 6.1, "nativeWidth": 1179, "nativeHeight": 2556, "ppi": 460,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 3349, "releaseYear": 2023
+    },
+    {
+      "identifier": "iPhone15,5", "name": "iPhone 15 Plus", "family": "iPhone",
+      "chip": "A16 Bionic", "ramGB": 6,
+      "screenInches": 6.7, "nativeWidth": 1290, "nativeHeight": 2796, "ppi": 460,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 4383, "releaseYear": 2023
+    },
+    {
+      "identifier": "iPhone16,1", "name": "iPhone 15 Pro", "family": "iPhone",
+      "chip": "A17 Pro", "ramGB": 8,
+      "screenInches": 6.1, "nativeWidth": 1179, "nativeHeight": 2556, "ppi": 460,
+      "refreshRate": 120, "panelType": "OLED (ProMotion LTPO)", "batteryDesignMah": 3274, "releaseYear": 2023
+    },
+    {
+      "identifier": "iPhone16,2", "name": "iPhone 15 Pro Max", "family": "iPhone",
+      "chip": "A17 Pro", "ramGB": 8,
+      "screenInches": 6.7, "nativeWidth": 1290, "nativeHeight": 2796, "ppi": 460,
+      "refreshRate": 120, "panelType": "OLED (ProMotion LTPO)", "batteryDesignMah": 4441, "releaseYear": 2023
+    },
+    {
+      "identifier": "iPhone17,3", "name": "iPhone 16", "family": "iPhone",
+      "chip": "A18", "ramGB": 8,
+      "screenInches": 6.1, "nativeWidth": 1179, "nativeHeight": 2556, "ppi": 460,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 3561, "releaseYear": 2024
+    },
+    {
+      "identifier": "iPhone17,4", "name": "iPhone 16 Plus", "family": "iPhone",
+      "chip": "A18", "ramGB": 8,
+      "screenInches": 6.7, "nativeWidth": 1290, "nativeHeight": 2796, "ppi": 460,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 4674, "releaseYear": 2024
+    },
+    {
+      "identifier": "iPhone17,1", "name": "iPhone 16 Pro", "family": "iPhone",
+      "chip": "A18 Pro", "ramGB": 8,
+      "screenInches": 6.3, "nativeWidth": 1206, "nativeHeight": 2622, "ppi": 460,
+      "refreshRate": 120, "panelType": "OLED (ProMotion LTPO)", "batteryDesignMah": 3582, "releaseYear": 2024
+    },
+    {
+      "identifier": "iPhone17,2", "name": "iPhone 16 Pro Max", "family": "iPhone",
+      "chip": "A18 Pro", "ramGB": 8,
+      "screenInches": 6.9, "nativeWidth": 1320, "nativeHeight": 2868, "ppi": 460,
+      "refreshRate": 120, "panelType": "OLED (ProMotion LTPO)", "batteryDesignMah": 4685, "releaseYear": 2024
+    },
+    {
+      "identifier": "iPhone17,5", "name": "iPhone 16e", "family": "iPhone",
+      "chip": "A18", "ramGB": 8,
+      "screenInches": 6.1, "nativeWidth": 1170, "nativeHeight": 2532, "ppi": 460,
+      "refreshRate": 60, "panelType": "OLED (Super Retina XDR)", "batteryDesignMah": 4005, "releaseYear": 2025
+    },
+    {
+      "identifier": "iPad16,3", "name": "iPad Pro 11 英寸 (M4)", "family": "iPad",
+      "chip": "Apple M4", "ramGB": 8,
+      "screenInches": 11.0, "nativeWidth": 1668, "nativeHeight": 2420, "ppi": 264,
+      "refreshRate": 120, "panelType": "OLED (Ultra Retina XDR)", "batteryDesignMah": null, "releaseYear": 2024
+    },
+    {
+      "identifier": "iPad16,4", "name": "iPad Pro 13 英寸 (M4)", "family": "iPad",
+      "chip": "Apple M4", "ramGB": 8,
+      "screenInches": 13.0, "nativeWidth": 2064, "nativeHeight": 2752, "ppi": 264,
+      "refreshRate": 120, "panelType": "OLED (Ultra Retina XDR)", "batteryDesignMah": null, "releaseYear": 2024
+    },
+    {
+      "identifier": "iPad14,8", "name": "iPad Air 11 英寸 (M2)", "family": "iPad",
+      "chip": "Apple M2", "ramGB": 8,
+      "screenInches": 11.0, "nativeWidth": 1640, "nativeHeight": 2360, "ppi": 264,
+      "refreshRate": 60, "panelType": "LCD (Liquid Retina)", "batteryDesignMah": null, "releaseYear": 2024
+    },
+    {
+      "identifier": "iPad14,9", "name": "iPad Air 13 英寸 (M2)", "family": "iPad",
+      "chip": "Apple M2", "ramGB": 8,
+      "screenInches": 13.0, "nativeWidth": 2048, "nativeHeight": 2732, "ppi": 264,
+      "refreshRate": 60, "panelType": "LCD (Liquid Retina)", "batteryDesignMah": null, "releaseYear": 2024
+    },
+    {
+      "identifier": "iPad16,1", "name": "iPad mini (A17 Pro)", "family": "iPad",
+      "chip": "A17 Pro", "ramGB": 8,
+      "screenInches": 8.3, "nativeWidth": 1488, "nativeHeight": 2266, "ppi": 326,
+      "refreshRate": 60, "panelType": "LCD (Liquid Retina)", "batteryDesignMah": null, "releaseYear": 2024
+    },
+    {
+      "identifier": "iPad13,18", "name": "iPad (第 10 代)", "family": "iPad",
+      "chip": "A14 Bionic", "ramGB": 4,
+      "screenInches": 10.9, "nativeWidth": 1640, "nativeHeight": 2360, "ppi": 264,
+      "refreshRate": 60, "panelType": "LCD (Liquid Retina)", "batteryDesignMah": null, "releaseYear": 2022
+    },
+    {
+      "identifier": "iPad13,19", "name": "iPad (第 10 代, 蜂窝)", "family": "iPad",
+      "chip": "A14 Bionic", "ramGB": 4,
+      "screenInches": 10.9, "nativeWidth": 1640, "nativeHeight": 2360, "ppi": 264,
+      "refreshRate": 60, "panelType": "LCD (Liquid Retina)", "batteryDesignMah": null, "releaseYear": 2022
+    },
+    {
+      "identifier": "iPad14,3", "name": "iPad Pro 11 英寸 (M2)", "family": "iPad",
+      "chip": "Apple M2", "ramGB": 8,
+      "screenInches": 11.0, "nativeWidth": 1668, "nativeHeight": 2388, "ppi": 264,
+      "refreshRate": 120, "panelType": "LCD (Liquid Retina)", "batteryDesignMah": null, "releaseYear": 2022
+    },
+    {
+      "identifier": "iPad14,6", "name": "iPad Pro 12.9 英寸 (M2)", "family": "iPad",
+      "chip": "Apple M2", "ramGB": 8,
+      "screenInches": 12.9, "nativeWidth": 2048, "nativeHeight": 2732, "ppi": 264,
+      "refreshRate": 120, "panelType": "mini-LED (Liquid Retina XDR)", "batteryDesignMah": null, "releaseYear": 2022
+    }
+  ]
+}

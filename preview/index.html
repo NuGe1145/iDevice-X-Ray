@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iDevice X-Ray · UI 预览</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+
+  :root{
+    --bg:#0B0618;
+    --primary:#7C3AED;
+    --primary-light:#A855F7;
+    --cyan:#22D3EE;
+    --success:#34D399;
+    --warning:#F59E0B;
+    --danger:#F87171;
+    --text:#fff;
+    --text2:rgba(255,255,255,.64);
+    --text3:rgba(255,255,255,.36);
+    --line:rgba(255,255,255,.08);
+  }
+
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",sans-serif;
+    background:
+      radial-gradient(900px 600px at 15% -5%, rgba(124,58,237,.35), transparent 60%),
+      radial-gradient(700px 500px at 95% 100%, rgba(34,211,238,.12), transparent 60%),
+      #05030B;
+    min-height:100vh;
+    display:flex; align-items:center; justify-content:center;
+    padding:40px 24px; color:var(--text);
+  }
+
+  .stage{ display:flex; gap:56px; align-items:center; max-width:1180px; width:100%; }
+
+  /* ---------- 手机 ---------- */
+  .phone{
+    width:392px; height:820px; flex:0 0 auto;
+    border-radius:56px; padding:11px;
+    background:linear-gradient(160deg,#3B3B45,#121218 40%,#2A2A33);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,.08),
+      0 40px 90px -20px rgba(0,0,0,.85),
+      0 0 120px -30px rgba(124,58,237,.55);
+    position:relative;
+  }
+  .screen{
+    width:100%; height:100%; border-radius:46px; overflow:hidden;
+    position:relative;
+    background:
+      radial-gradient(420px 380px at 50% -6%, rgba(124,58,237,.55), transparent 70%),
+      linear-gradient(155deg,#150B2E 0%,#0B0618 55%,#08040F 100%);
+    display:flex; flex-direction:column;
+  }
+  .screen::after{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background-image:
+      radial-gradient(1px 1px at 12% 8%, rgba(255,255,255,.55), transparent),
+      radial-gradient(1px 1px at 68% 14%, rgba(255,255,255,.4), transparent),
+      radial-gradient(1.2px 1.2px at 34% 26%, rgba(255,255,255,.35), transparent),
+      radial-gradient(1px 1px at 82% 42%, rgba(255,255,255,.45), transparent),
+      radial-gradient(1px 1px at 22% 58%, rgba(255,255,255,.3), transparent),
+      radial-gradient(1.2px 1.2px at 74% 72%, rgba(255,255,255,.4), transparent),
+      radial-gradient(1px 1px at 44% 86%, rgba(255,255,255,.3), transparent);
+  }
+
+  /* 灵动岛 */
+  .island{
+    position:absolute; top:11px; left:50%; transform:translateX(-50%);
+    width:112px; height:32px; background:#000; border-radius:20px; z-index:20;
+  }
+
+  .statusbar{
+    height:52px; flex:0 0 auto; display:flex; align-items:flex-end; justify-content:space-between;
+    padding:0 26px 6px; font-size:13px; font-weight:600; position:relative; z-index:10;
+  }
+  .statusbar .right{ display:flex; gap:5px; align-items:center; }
+
+  .content{
+    flex:1; overflow-y:auto; padding:4px 16px 16px; position:relative; z-index:5;
+    scrollbar-width:none;
+  }
+  .content::-webkit-scrollbar{ display:none; }
+
+  /* ---------- 通用 ---------- */
+  .card{
+    background:rgba(255,255,255,.055);
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:22px;
+    padding:16px;
+    backdrop-filter:blur(20px);
+  }
+
+  .header{ display:flex; align-items:center; gap:11px; padding:6px 0 14px; }
+  .logo{
+    width:44px; height:44px; border-radius:13px;
+    background:linear-gradient(140deg,#A855F7,#6D28D9);
+    display:grid; place-items:center;
+    box-shadow:0 6px 22px -6px rgba(168,85,247,.9);
+  }
+  .header h1{ font-size:19px; font-weight:700; letter-spacing:-.3px; }
+  .header p{ font-size:11px; color:var(--text3); margin-top:2px; }
+  .badge{
+    margin-left:auto; font-size:10px; font-weight:600; color:var(--success);
+    background:rgba(52,211,153,.12); padding:5px 9px; border-radius:20px;
+    display:flex; align-items:center; gap:4px; white-space:nowrap;
+  }
+
+  /* ---------- 状态卡 ---------- */
+  .status{ display:flex; gap:16px; align-items:center; }
+  .ring{
+    width:92px; height:92px; border-radius:50%; flex:0 0 auto;
+    background:conic-gradient(from -90deg,#7C3AED,#A855F7 100%);
+    display:grid; place-items:center; position:relative;
+    box-shadow:0 0 30px -6px rgba(168,85,247,.75);
+  }
+  .ring::before{
+    content:""; position:absolute; inset:7px; border-radius:50%;
+    background:#150B2E;
+  }
+  .ring svg{ position:relative; z-index:2; }
+  .status h2{ font-size:17px; font-weight:600; letter-spacing:-.2px; }
+  .status .sub{ font-size:12px; color:var(--text2); margin-top:5px; line-height:1.5; }
+  .status .device{ font-size:11px; color:var(--text3); margin-top:5px; }
+
+  .ministats{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:14px; }
+  .ministat{ background:rgba(255,255,255,.04); border-radius:12px; padding:9px 0; text-align:center; }
+  .ministat b{ display:block; font-size:16px; font-weight:700; letter-spacing:-.3px; }
+  .ministat span{ font-size:10px; color:var(--text3); }
+
+  /* ---------- 按钮 ---------- */
+  .actions{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0 18px; }
+  .btn{
+    border-radius:16px; padding:13px 0; font-size:13px; font-weight:600;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    cursor:pointer; border:none; font-family:inherit; color:#fff;
+  }
+  .btn-primary{ background:linear-gradient(120deg,#7C3AED,#A855F7); box-shadow:0 8px 24px -10px rgba(168,85,247,.9); }
+  .btn-ghost{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); }
+
+  /* ---------- 快速入口 ---------- */
+  .section-title{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .section-title h3{ font-size:15px; font-weight:600; }
+  .section-title a{ font-size:12px; color:var(--primary-light); text-decoration:none; }
+
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .tile{
+    display:flex; align-items:center; gap:9px; padding:10px;
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07);
+    border-radius:14px; cursor:pointer;
+  }
+  .tile .ico{
+    width:30px; height:30px; border-radius:9px; display:grid; place-items:center; flex:0 0 auto;
+  }
+  .tile .txt b{ display:block; font-size:12.5px; font-weight:500; }
+  .tile .txt span{ font-size:10px; color:var(--text3); }
+
+  /* ---------- 可信度 ---------- */
+  .legend{ margin-top:16px; }
+  .legend h3{ font-size:15px; font-weight:600; margin-bottom:12px; display:flex; align-items:center; gap:7px; }
+  .legend-row{ display:flex; align-items:center; gap:8px; margin-bottom:9px; font-size:11px; color:var(--text2); }
+  .chip{ font-size:10px; font-weight:500; padding:3px 7px; border-radius:20px; white-space:nowrap; display:flex; align-items:center; gap:3px; }
+  .c-verified{ color:var(--success); background:rgba(52,211,153,.14); }
+  .c-high{ color:var(--cyan); background:rgba(34,211,238,.14); }
+  .c-inferred{ color:var(--warning); background:rgba(245,158,11,.14); }
+  .c-none{ color:var(--text3); background:rgba(255,255,255,.07); }
+
+  /* ---------- Tab Bar ---------- */
+  .tabbar{
+    flex:0 0 auto; height:76px; display:flex; align-items:flex-start; padding-top:10px;
+    background:rgba(10,5,20,.72); backdrop-filter:blur(24px);
+    border-top:1px solid rgba(255,255,255,.07); position:relative; z-index:10;
+  }
+  .tab{ flex:1; text-align:center; color:var(--text3); font-size:10px; cursor:pointer; }
+  .tab.active{ color:var(--primary-light); }
+  .tab svg{ display:block; margin:0 auto 3px; }
+
+  /* ---------- 详情页 ---------- */
+  .detail-head{ display:flex; align-items:center; gap:10px; padding:14px 0 16px; }
+  .back{
+    width:30px; height:30px; border-radius:50%; background:rgba(255,255,255,.07);
+    display:grid; place-items:center; cursor:pointer;
+  }
+  .detail-head h2{ font-size:16px; font-weight:600; }
+  .summary-row{ display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+  .summary-row .box{
+    width:48px; height:48px; border-radius:14px; display:grid; place-items:center;
+    background:rgba(34,211,238,.12);
+  }
+  .summary-row p{ font-size:11px; color:var(--text2); margin-top:3px; }
+
+  .rows{ }
+  .row{ padding:9px 0; border-bottom:1px solid rgba(255,255,255,.055); }
+  .row:last-child{ border-bottom:none; }
+  .row .top{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  .row .k{ font-size:13px; color:var(--text2); }
+  .row .v{ font-size:13px; font-weight:600; text-align:right; }
+  .row .v.muted{ color:var(--text3); font-weight:400; }
+  .row .note{ font-size:10px; color:var(--text3); margin-top:5px; display:flex; gap:4px; line-height:1.5; }
+
+  /* ---------- 深度检测页 ---------- */
+  .step{ display:flex; gap:8px; align-items:flex-start; margin-bottom:9px; }
+  .step .n{
+    width:18px; height:18px; border-radius:50%; background:rgba(124,58,237,.2);
+    color:#C4B5FD; font-size:10px; font-weight:700; display:grid; place-items:center; flex:0 0 auto;
+  }
+  .step p{ font-size:11px; color:var(--text2); line-height:1.55; }
+
+  .drop{
+    margin-top:14px; padding:28px 10px; text-align:center;
+    border:1px dashed rgba(168,85,247,.5); border-radius:20px;
+    background:rgba(255,255,255,.03); cursor:pointer;
+  }
+  .drop b{ display:block; font-size:14px; margin:10px 0 4px; font-weight:600; }
+  .drop span{ font-size:10px; color:var(--text3); }
+
+  .result-row{ display:flex; justify-content:space-between; font-size:12px; padding:6px 0; }
+  .pill{
+    font-size:10px; color:var(--text2); background:rgba(255,255,255,.06);
+    padding:3px 8px; border-radius:20px;
+  }
+
+  /* ---------- 右侧说明 ---------- */
+  .info{ max-width:400px; }
+  .info h2{ font-size:26px; font-weight:800; letter-spacing:-.6px; margin-bottom:10px; }
+  .info h2 em{ font-style:normal; background:linear-gradient(100deg,#A855F7,#22D3EE); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .info p{ font-size:13.5px; line-height:1.75; color:var(--text2); margin-bottom:16px; }
+  .switcher{ display:flex; gap:8px; margin-bottom:22px; flex-wrap:wrap; }
+  .sw{
+    padding:8px 14px; border-radius:20px; font-size:12px; cursor:pointer;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); color:var(--text2);
+  }
+  .sw.active{ background:linear-gradient(120deg,#7C3AED,#A855F7); color:#fff; border-color:transparent; }
+  .points{ display:flex; flex-direction:column; gap:12px; }
+  .point{ display:flex; gap:10px; align-items:flex-start; }
+  .point .dot{ width:6px; height:6px; border-radius:50%; background:var(--primary-light); margin-top:7px; flex:0 0 auto; }
+  .point p{ font-size:12.5px; line-height:1.6; color:var(--text2); margin:0; }
+  .point b{ color:#fff; font-weight:600; }
+
+  @media (max-width:980px){
+    body{ padding:24px 14px; align-items:flex-start; }
+    .stage{ flex-direction:column; gap:32px; }
+    .phone{ transform:scale(.92); transform-origin:top center; }
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- ============ 手机 ============ -->
+  <div class="phone">
+    <div class="island"></div>
+    <div class="screen">
+
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="right">
+          <svg width="17" height="11" viewBox="0 0 17 11" fill="#fff"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg>
+          <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="#fff" stroke-width="1.4"><path d="M1 3.5a10 10 0 0 1 14 0"/><path d="M4 6.3a6 6 0 0 1 8 0"/><path d="M7 9a2 2 0 0 1 2 0"/></svg>
+          <svg width="24" height="11" viewBox="0 0 24 11"><rect x="0.5" y="0.5" width="20" height="10" rx="3" stroke="rgba(255,255,255,.45)" fill="none"/><rect x="2" y="2" width="14" height="7" rx="1.8" fill="#fff"/><rect x="21.5" y="3.5" width="1.6" height="4" rx="0.8" fill="rgba(255,255,255,.5)"/></svg>
+        </span>
+      </div>
+
+      <div class="content">
+
+        <!-- ===== 首页 ===== -->
+        <div class="page" data-page="home">
+          <div class="header">
+            <div class="logo">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round">
+                <path d="M4 8V6a2 2 0 0 1 2-2h2"/><path d="M16 4h2a2 2 0 0 1 2 2v2"/>
+                <path d="M20 16v2a2 2 0 0 1-2 2h-2"/><path d="M8 20H6a2 2 0 0 1-2-2v-2"/>
+              </svg>
+            </div>
+            <div>
+              <h1>iDevice X-Ray</h1>
+              <p>探索设备深处，发现更多可能</p>
+            </div>
+            <div class="badge">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M2 2l20 20"/><path d="M5 12a10 10 0 0 1 3-4"/><path d="M19 12a10 10 0 0 0-3-4"/><path d="M8.5 15.5a5 5 0 0 1 7 0"/></svg>
+              离线
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="status">
+              <div class="ring">
+                <svg width="30" height="30" viewBox="0 0 30 30" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round">
+                  <rect x="8" y="2.5" width="14" height="25" rx="4"/>
+                  <path d="M12 5.5h6"/>
+                  <path d="M13.5 24.5h3"/>
+                </svg>
+              </div>
+              <div>
+                <h2>设备扫描完成</h2>
+                <div class="sub">共 31 项信息，其中 14 项成功读取</div>
+                <div class="device">iPhone 16 Pro · iOS 26.0</div>
+              </div>
+            </div>
+            <div class="ministats">
+              <div class="ministat"><b style="color:var(--success)">14</b><span>可读项</span></div>
+              <div class="ministat"><b style="color:var(--cyan)">11</b><span>已验证</span></div>
+              <div class="ministat"><b style="color:var(--primary-light)">52%</b><span>完整度</span></div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="btn btn-primary">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+              标准检测
+            </button>
+            <button class="btn btn-ghost" onclick="show('deep')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><circle cx="11" cy="14" r="2.5"/><path d="M13 16l2 2"/></svg>
+              深度检测
+            </button>
+          </div>
+
+          <div class="section-title">
+            <h3>快速入口</h3>
+            <a onclick="show('detail')">查看完整报告</a>
+          </div>
+
+          <div class="grid">
+            <div class="tile" onclick="show('detail')">
+              <div class="ico" style="background:rgba(34,211,238,.14)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2"><rect x="7" y="2" width="10" height="20" rx="3"/><path d="M10 5h4"/></svg>
+              </div>
+              <div class="txt"><b>设备概览</b><span>型号 · 芯片 · 内存</span></div>
+            </div>
+            <div class="tile" onclick="show('detail')">
+              <div class="ico" style="background:rgba(168,85,247,.14)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A855F7" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8"/></svg>
+              </div>
+              <div class="txt"><b>屏幕信息</b><span>分辨率 · 像素密度</span></div>
+            </div>
+            <div class="tile">
+              <div class="ico" style="background:rgba(52,211,153,.14)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#34D399" stroke-width="2"><rect x="2" y="7" width="16" height="10" rx="3"/><path d="M22 11v2"/><rect x="5" y="10" width="8" height="4" rx="1" fill="#34D399" stroke="none"/></svg>
+              </div>
+              <div class="txt"><b>电池状态</b><span>电量 · 充电 · 健康</span></div>
+            </div>
+            <div class="tile">
+              <div class="ico" style="background:rgba(245,158,11,.14)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M2 10h20"/><circle cx="7" cy="14.5" r="1.2" fill="#F59E0B" stroke="none"/></svg>
+              </div>
+              <div class="txt"><b>存储分析</b><span>容量 · 使用率</span></div>
+            </div>
+            <div class="tile">
+              <div class="ico" style="background:rgba(96,165,250,.14)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#60A5FA" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>
+              </div>
+              <div class="txt"><b>系统状态</b><span>热状态 · 运行时长</span></div>
+            </div>
+            <div class="tile">
+              <div class="ico" style="background:rgba(244,114,182,.14)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F472B6" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>
+              </div>
+              <div class="txt"><b>诊断报告</b><span>完整体检报告</span></div>
+            </div>
+          </div>
+
+          <div class="card legend">
+            <h3>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34D399" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+              数据可信度
+            </h3>
+            <div class="legend-row"><span class="chip c-verified">✓ 已验证</span>系统 API 直接读取，可信</div>
+            <div class="legend-row"><span class="chip c-high">✓ 较可信</span>来源可靠，但非系统直接上报</div>
+            <div class="legend-row"><span class="chip c-inferred">? 推断</span>由机型库或日志推断，仅供参考</div>
+            <div class="legend-row"><span class="chip c-none">— 不可读取</span>受系统限制无法读取，不做猜测</div>
+          </div>
+
+          <p style="text-align:center;font-size:10px;color:var(--text3);margin-top:14px;line-height:1.6">
+            所有数据仅在本机处理，不上传、不联网<br>
+            机型库 2026.01
+          </p>
+        </div>
+
+        <!-- ===== 详情页 ===== -->
+        <div class="page" data-page="detail" style="display:none">
+          <div class="detail-head">
+            <div class="back" onclick="show('home')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </div>
+            <h2>设备概览</h2>
+          </div>
+
+          <div class="card" style="margin-bottom:12px">
+            <div class="summary-row" style="margin-bottom:0">
+              <div class="box">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2"><rect x="7" y="2" width="10" height="20" rx="3"/><path d="M10 5h4"/></svg>
+              </div>
+              <div>
+                <div style="font-size:14px;font-weight:600">7 / 9 项可读取</div>
+                <p>点击任意一行查看数据来源</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="rows">
+              <div class="row">
+                <div class="top"><span class="k">设备型号</span><span class="v">iPhone 16 Pro</span></div>
+                <div class="note">由机型标识 iPhone17,1 匹配机型库</div>
+              </div>
+              <div class="row">
+                <div class="top"><span class="k">机型标识</span><span class="v">iPhone17,1</span></div>
+                <div class="note">sysctl hw.machine</div>
+              </div>
+              <div class="row">
+                <div class="top"><span class="k">芯片</span><span class="v">A18 Pro</span></div>
+                <div class="note">芯片型号无法由系统 API 读取，按机型推断</div>
+              </div>
+              <div class="row">
+                <div class="top"><span class="k">CPU 核心</span><span class="v">6 核</span></div>
+                <div class="note">2 性能核 + 4 能效核</div>
+              </div>
+              <div class="row">
+                <div class="top"><span class="k">运行内存</span><span class="v">8 GB</span></div>
+                <div class="note">标称容量；系统实测 7.7 GB</div>
+              </div>
+              <div class="row">
+                <div class="top"><span class="k">系统版本</span><span class="v">26.0</span></div>
+              </div>
+              <div class="row">
+                <div class="top"><span class="k">系统 Build</span><span class="v">23A344</span></div>
+                <div class="note">sysctl kern.osversion</div>
+              </div>
+              <div class="row">
+                <div class="top"><span class="k">开机时长</span><span class="v">12 天 3 小时</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:12px">
+            <div class="rows">
+              <div class="row">
+                <div class="top"><span class="k">面板供应商</span><span class="v muted">—</span></div>
+                <div class="note">iOS 不向第三方 App 暴露面板厂商，需导入诊断档案后从日志尝试推断</div>
+              </div>
+              <div class="row">
+                <div class="top"><span class="k">CPU 温度</span><span class="v muted">—</span></div>
+                <div class="note">iOS 未开放温度传感器接口，任何显示具体温度数值的 App 都来自估算</div>
+              </div>
+            </div>
+          </div>
+
+          <p style="font-size:10px;color:var(--text3);margin-top:12px;line-height:1.7">
+            点击任意一行，可查看该项数据的来源与说明。标为「不可读取」的项目，本机确实拿不到，我们不会用估算值填充。
+          </p>
+        </div>
+
+        <!-- ===== 深度检测页 ===== -->
+        <div class="page" data-page="deep" style="display:none">
+          <div class="detail-head">
+            <div class="back" onclick="show('home')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </div>
+            <h2>深度检测</h2>
+          </div>
+
+          <div class="card">
+            <div class="section-title" style="margin-bottom:12px">
+              <h3 style="display:flex;align-items:center;gap:7px;font-size:15px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.6 2.2c-.6.3-1.1.8-1.1 1.6"/><path d="M12 17h.01"/></svg>
+                如何获取诊断档案
+              </h3>
+            </div>
+            <div class="step"><div class="n">1</div><p>同时按住「音量 +」「音量 −」和「侧边按钮」约 1.5 秒，屏幕会闪一下</p></div>
+            <div class="step"><div class="n">2</div><p>等待 1–3 分钟，系统在后台生成压缩包</p></div>
+            <div class="step"><div class="n">3</div><p>打开「设置 › 隐私与安全性 › 分析与改进 › 分析数据」</p></div>
+            <div class="step"><div class="n">4</div><p>找到 sysdiagnose 开头的 .tar.gz，分享到「文件」，再从这里导入</p></div>
+            <div style="display:flex;gap:6px;margin-top:10px;color:var(--success);font-size:10px;line-height:1.5">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex:0 0 auto;margin-top:1px"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>
+              档案只在本机解压与解析，不会上传。解析完成后临时文件立即删除。
+            </div>
+          </div>
+
+          <div class="drop">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#A855F7" stroke-width="1.6"><path d="M12 3v11"/><path d="M8 10l4 4 4-4"/><rect x="3" y="16" width="18" height="5" rx="2"/></svg>
+            <b>选择 sysdiagnose 压缩包</b>
+            <span>支持 .tar.gz / .tgz，建议小于 500 MB</span>
+          </div>
+
+          <div class="card" style="margin-top:12px">
+            <div class="section-title" style="margin-bottom:10px">
+              <h3 style="display:flex;align-items:center;gap:7px;font-size:15px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34D399" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+                解析结果
+              </h3>
+            </div>
+            <div style="font-size:12px;font-weight:500;margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">sysdiagnose_2026.11.19.tar.gz</div>
+            <div style="display:flex;gap:7px;margin-bottom:10px">
+              <span class="pill">1842 条目</span><span class="pill">3 命中</span><span class="pill">12.4s</span>
+            </div>
+            <div style="background:rgba(255,255,255,.04);border-radius:12px;padding:6px 12px">
+              <div class="result-row"><span style="color:var(--text2)">循环次数</span><span style="font-weight:600">258 次</span></div>
+              <div class="result-row"><span style="color:var(--text2)">健康度</span><span style="font-weight:600">98%</span></div>
+              <div class="result-row"><span style="color:var(--text2)">电池温度</span><span style="font-weight:600">30.5 °C</span></div>
+              <div class="result-row"><span style="color:var(--text2)">电池电压</span><span style="font-weight:600">3.85 V</span></div>
+              <div class="result-row"><span style="color:var(--text2)">显示组件 ID</span><span style="font-weight:600">Vendor 1552</span></div>
+            </div>
+            <div style="display:flex;gap:5px;color:var(--warning);font-size:10px;margin-top:9px;line-height:1.5">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex:0 0 auto;margin-top:1px"><path d="M12 3l9 16H3z"/><path d="M12 9v4M12 16h.01"/></svg>
+              取到显示组件 ID，但厂商名无法由 ID 可靠映射，未做推断
+            </div>
+            <button class="btn btn-primary" style="width:100%;margin-top:12px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/></svg>
+              合并到体检报告
+            </button>
+          </div>
+
+          <p style="font-size:10px;color:var(--text3);margin-top:12px;line-height:1.7">
+            受 iOS 沙盒限制，「循环次数」「健康度」等字段没有任何公开 API，只能通过系统诊断档案间接获取。解析结果的可信度取决于系统日志是否包含对应记录。
+          </p>
+        </div>
+
+      </div>
+
+      <div class="tabbar">
+        <div class="tab active" onclick="show('home')">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/></svg>
+          首页
+        </div>
+        <div class="tab" onclick="show('detail')">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+          报告
+        </div>
+        <div class="tab" onclick="show('deep')">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6 2 2 0 1 1 14 4.6a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4z"/></svg>
+          设置
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ 说明 ============ -->
+  <div class="info">
+    <h2>iDevice <em>X-Ray</em></h2>
+    <p>这不是设计稿，是与 SwiftUI 源码一一对应的 UI 预览。三屏分别是首页、详情页、深度检测页，可直接点击切换。</p>
+
+    <div class="switcher">
+      <div class="sw active" data-target="home" onclick="show('home')">首页</div>
+      <div class="sw" data-target="detail" onclick="show('detail')">设备详情</div>
+      <div class="sw" data-target="deep" onclick="show('deep')">深度检测</div>
+    </div>
+
+    <div class="points">
+      <div class="point"><div class="dot"></div><p><b>没有假数据。</b>「面板供应商」「CPU 温度」显示为「—」并给出原因，而不是编一个看起来很专业的数字。</p></div>
+      <div class="point"><div class="dot"></div><p><b>每个数值都能溯源。</b>点击任意一行，展开这条数据的来源与可信度说明。</p></div>
+      <div class="point"><div class="dot"></div><p><b>深度检测是唯一拿到电池循环次数的合规路径。</b>解析用户导入的 sysdiagnose，全程本地、不上传。</p></div>
+      <div class="point"><div class="dot"></div><p><b>适配 iPhone 与 iPad。</b>网格自适应，iPad 横屏自动多列，内容区最大宽度 900pt 居中。</p></div>
+    </div>
+
+    <div style="margin-top:26px;padding:16px 18px;border:1px solid rgba(255,255,255,.08);border-radius:16px;background:rgba(255,255,255,.03)">
+      <div style="font-size:11px;letter-spacing:.08em;color:rgba(255,255,255,.36);margin-bottom:10px">已实现 · 3919 行 Swift</div>
+      <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:rgba(255,255,255,.7)">
+        <div style="display:flex;justify-content:space-between"><span>标准检测 · 五个采集引擎</span><span style="color:#34D399">完成</span></div>
+        <div style="display:flex;justify-content:space-between"><span>报告导出 · PDF / JSON / 长图</span><span style="color:#34D399">完成</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Sysdiagnose 流式解析</span><span style="color:#34D399">完成</span></div>
+        <div style="display:flex;justify-content:space-between"><span>验机规则引擎</span><span style="color:rgba(255,255,255,.35)">规划中</span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function show(name){
+    document.querySelectorAll('.page').forEach(el => {
+      el.style.display = el.dataset.page === name ? 'block' : 'none';
+    });
+    document.querySelectorAll('.sw').forEach(el => {
+      el.classList.toggle('active', el.dataset.target === name);
+    });
+    document.querySelectorAll('.tab').forEach((el, i) => {
+      const map = ['home','home','deep'];
+      el.classList.toggle('active', map[i] === name);
+    });
+    const content = document.querySelector('.content');
+    if(content) content.scrollTop = 0;
+  }
+
+  const initial = location.hash.replace('#', '');
+  if (['home', 'detail', 'deep'].indexOf(initial) >= 0) show(initial);
+</script>
+</body>
+</html>
