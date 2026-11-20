@@ -86,7 +86,7 @@ struct DeepScanView: View {
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "arrow.down.doc")
                         .font(.system(size: 10))
-                    Text("更轻的方式：在电脑上解压诊断包，只取 logs/powerlogs/CurrentPowerlog.PLSQL（有同名 -wal 就一起带上），AirDrop 到手机直接导入。内容一样，不用传整个包。")
+                    Text("更轻的方式：在电脑上解压诊断包，只取 logs/powerlogs/CurrentPowerlog.PLSQL，AirDrop 到手机直接导入。内容与整包一致（未落盘的 -wal 记录同样读不到）。")
                         .font(.system(size: 10))
                         .fixedSize(horizontal: false, vertical: true)
                 }
