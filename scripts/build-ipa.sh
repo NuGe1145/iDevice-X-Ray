@@ -19,9 +19,14 @@ DERIVED="$BUILD/DerivedData"
 EXPORT="$BUILD/export"
 
 if [ -z "${MARKETING_VERSION:-}" ]; then
+  # 只有 HEAD 正好打了标签才用标签版本；主干上的临时构建按 project.yml，
+  # 否则手动构建出来的包会一直挂着上一个正式版的版本号。
   tag=$(git tag --points-at HEAD --list 'v*' 2>/dev/null | sort -V | tail -1 || true)
-  [ -n "$tag" ] || tag=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
-  [ -z "$tag" ] || MARKETING_VERSION="${tag#v}"
+  if [ -n "$tag" ]; then
+    MARKETING_VERSION="${tag#v}"
+  else
+    MARKETING_VERSION=$(sed -n 's/^ *MARKETING_VERSION: *"\{0,1\}\([0-9][0-9.]*\)"\{0,1\}.*/\1/p' project.yml | head -1)
+  fi
 fi
 if [ -z "${CURRENT_PROJECT_VERSION:-}" ]; then
   CURRENT_PROJECT_VERSION=$(git rev-list --count HEAD 2>/dev/null || echo 1)
