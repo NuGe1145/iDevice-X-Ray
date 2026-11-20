@@ -220,4 +220,53 @@ final class PowerlogTests: XCTestCase {
         XCTAssertEqual(result.extraction["battery.cycleCount"], "258 次")
         XCTAssertNotNil(result.powerlog)
     }
+
+    // MARK: - 文件头判定
+
+    func testDetectsGzipAndZipHeaders() throws {
+        let dir = FileManager.default.temporaryDirectory
+        let gz = dir.appendingPathComponent("fake-\(UUID().uuidString).gz")
+        let zip = dir.appendingPathComponent("fake-\(UUID().uuidString).zip")
+        let txt = dir.appendingPathComponent("fake-\(UUID().uuidString).txt")
+        try Data([0x1F, 0x8B, 0x08, 0, 0, 0, 0, 0]).write(to: gz)
+        try Data([0x50, 0x4B, 0x03, 0x04, 0, 0, 0, 0]).write(to: zip)
+        try Data("plain text".utf8).write(to: txt)
+        defer {
+            for url in [gz, zip, txt] { try? FileManager.default.removeItem(at: url) }
+        }
+
+        XCTAssertEqual(DeepScanService.kind(at: gz), .gzip)
+        XCTAssertEqual(DeepScanService.kind(at: zip), .zip)
+        XCTAssertEqual(DeepScanService.kind(at: txt), .other)
+    }
+
+    /// 选择器放开成任意文件之后，用户可能选中解压出来的目录。
+    /// 这种情况必须明确报「选到文件夹」，而不是读成 0 字节后说内容无法识别。
+    func testRejectsDirectoryImport() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("folder-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        do {
+            _ = try await DeepScanService.shared.parse(url: dir) { _, _ in }
+            XCTFail("目录不应被当作可解析文件")
+        } catch DeepScanError.isDirectory {
+            // 预期路径
+        }
+    }
+
+    func testPlainTextIsNotTreatedAsArchive() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("log-\(UUID().uuidString).txt")
+        try Data("some system log lines".utf8).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        do {
+            _ = try await DeepScanService.shared.parse(url: url) { _, _ in }
+            XCTFail("纯文本不应进入解压流程")
+        } catch DeepScanError.notArchive {
+            // 预期路径
+        }
+    }
 }

@@ -5,6 +5,9 @@ enum DeepScanError: LocalizedError {
     case copyFailed
     case notDownloaded
     case unreadable
+    case isDirectory
+    case zipArchive
+    case notArchive
 
     var errorDescription: String? {
         switch self {
@@ -16,8 +19,23 @@ enum DeepScanError: LocalizedError {
             return "文件还在 iCloud 里，没有下载到本机。先在「文件」App 中打开它，等下载完成后再导入"
         case .unreadable:
             return "文件是空的或内容无法识别"
+        case .isDirectory:
+            return "选到的是文件夹。请进入文件夹，选中里面的 sysdiagnose_*.tar.gz"
+        case .zipArchive:
+            return "这是 zip 压缩包，App 读不了。请导入未经解压的 sysdiagnose_*.tar.gz；已经解压的话，只取 logs/powerlogs/CurrentPowerlog.PLSQL 导入即可"
+        case .notArchive:
+            return "这个文件既不是 sysdiagnose 压缩包（.tar.gz），也不是 Powerlog 数据库。如果它是 .txt 或其他日志，里面没有电池历史"
         }
     }
+}
+
+/// 靠文件头判断类型，不信扩展名 —— 从「文件」里转存常把 .tar.gz 改成
+/// .gz、把 .PLSQL 改成 .sqlite，甚至干脆没有后缀。
+enum ImportedFileKind: Equatable {
+    case sqlite
+    case gzip
+    case zip
+    case other
 }
 
 final class DeepScanService: @unchecked Sendable {
@@ -51,6 +69,13 @@ final class DeepScanService: @unchecked Sendable {
         let accessed = url.startAccessingSecurityScopedResource()
         defer { if accessed { url.stopAccessingSecurityScopedResource() } }
 
+        // 选择器放开成「任意文件」之后，用户有可能选到文件夹（或解压出来的目录）。
+        // 这种情况 attributes 里的 size 是目录项大小，不能当文件读，先单独拦下来。
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
+            throw DeepScanError.isDirectory
+        }
+
         let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
         let size = (attributes?[.size] as? NSNumber)?.int64Value ?? 0
 
@@ -66,7 +91,8 @@ final class DeepScanService: @unchecked Sendable {
 
         // 单独传来的 Powerlog（电脑上解压后只取 CurrentPowerlog.PLSQL）不用走 tar，
         // 直接当 SQLite 读。比传 300MB 整包快得多，内容却是同一份。
-        if Self.isSQLite(at: localURL) {
+        switch Self.kind(at: localURL) {
+        case .sqlite:
             return runPowerlogOnly(
                 displayName: url.lastPathComponent,
                 localURL: localURL,
@@ -74,6 +100,15 @@ final class DeepScanService: @unchecked Sendable {
                 started: started,
                 onProgress: onProgress
             )
+        case .zip:
+            // zip 里的 sysdiagnose 还是要先解压，解压后内容一样，不值得再写一套 zip 解析
+            throw DeepScanError.zipArchive
+        case .gzip:
+            break
+        case .other:
+            // 不是 gzip 的文件喂给 GzipStreamDecoder 只会得到一句「内容无法解析」，
+            // 不如直接说清楚它到底是什么、该怎么拿对文件。
+            throw DeepScanError.notArchive
         }
 
         // Powerlog 是几百 MB 的 SQLite，落在磁盘上给 SQLite 自己按页读，
@@ -184,11 +219,21 @@ final class DeepScanService: @unchecked Sendable {
 
     /// SQLite 文件头固定 16 字节。用它判断类型，比猜扩展名可靠 ——
     /// 用户从「文件」里选的 .PLSQL 有时会被系统改名成 .sqlite 或没有扩展名。
-    static func isSQLite(at url: URL) -> Bool {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+    static func kind(at url: URL) -> ImportedFileKind {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return .other }
         defer { try? handle.close() }
-        guard let head = try? handle.read(upToCount: 16), head.count == 16 else { return false }
-        return head.starts(with: Data("SQLite format 3\u{0}".utf8))
+        guard let head = try? handle.read(upToCount: 16), !head.isEmpty else { return .other }
+
+        let bytes = [UInt8](head)
+        if bytes.starts(with: Array("SQLite format 3\u{0}".utf8)) { return .sqlite }
+        if bytes.count >= 2, bytes[0] == 0x1F, bytes[1] == 0x8B { return .gzip }
+        // 0x50 0x4B = "PK"，zip 与 docx/xlsx 共用这个头
+        if bytes.count >= 2, bytes[0] == 0x50, bytes[1] == 0x4B { return .zip }
+        return .other
+    }
+
+    static func isSQLite(at url: URL) -> Bool {
+        kind(at: url) == .sqlite
     }
 
     private func runPowerlogOnly(

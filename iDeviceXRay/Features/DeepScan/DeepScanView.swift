@@ -70,15 +70,13 @@ struct DeepScanView: View {
         .preferredColorScheme(.dark)
     }
 
-    private var allowedTypes: [UTType] {
-        var types: [UTType] = []
-        for ext in ["gz", "tgz", "tar", "plsql", "sqlite", "db"] {
-            if let type = UTType(filenameExtension: ext) { types.append(type) }
-        }
-        // .PLSQL 常被系统判成动态类型，不收宽就只能看到灰掉的文件
-        types.append(.data)
-        return types
-    }
+    /// 只放开 `.item`，也就是文件 App 里的所有文件。
+    ///
+    /// 之前按扩展名拼类型（gz / plsql / db…）。`.plsql`、`.db` 没有被系统注册，
+    /// `UTType(filenameExtension:)` 返回的是 `dyn.*` 动态类型。把动态类型塞进
+    /// 文档选择器的过滤条件，整套谓词会失效：表现就是文件全部变灰、一个都点不动，
+    /// 连本来合法的 .tar.gz 也一起被禁。改成不过滤，类型判断交给文件头。
+    private var allowedTypes: [UTType] { [.item] }
 
     // MARK: - 说明
 
@@ -95,7 +93,8 @@ struct DeepScanView: View {
                 step(1, "同时按住「音量 +」「音量 −」和「侧边按钮」约 1.5 秒，屏幕会闪一下")
                 step(2, "等待 1–3 分钟，系统在后台生成压缩包")
                 step(3, "打开「设置 › 隐私与安全性 › 分析与改进 › 分析数据」")
-                step(4, "找到 sysdiagnose 开头的 .tar.gz，分享到「文件」，再从这里导入")
+                step(4, "点开 sysdiagnose 开头的条目，右上角分享 → 存储到「文件」")
+                step(5, "回到这里选中那个 .tar.gz 导入")
 
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "arrow.down.doc")
@@ -150,9 +149,10 @@ struct DeepScanView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
 
-                Text("支持 .tar.gz / .tgz / .PLSQL，建议小于 500 MB")
+                Text("整包 .tar.gz 或单独取出的 Powerlog 数据库，建议小于 500 MB")
                     .font(.system(size: 10))
                     .foregroundStyle(Theme.textTertiary)
+                    .multilineTextAlignment(.center)
 
                 Text("也可以在「文件」里长按文件 → 共享 → iDevice X-Ray")
                     .font(.system(size: 10))
