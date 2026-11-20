@@ -186,4 +186,38 @@ final class PowerlogTests: XCTestCase {
         XCTAssertNil(PowerlogReader.decodeVolts(20_000))
         XCTAssertNil(PowerlogReader.decodeVolts(0.3))
     }
+
+    // MARK: - 裸数据库导入（不走 tar.gz）
+
+    func testDetectsSQLiteHeader() throws {
+        let url = try makeDatabase(["CREATE TABLE t (a INTEGER)"])
+        XCTAssertTrue(DeepScanService.isSQLite(at: url))
+    }
+
+    func testRejectsPlainTextFile() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("plain-\(UUID().uuidString).txt")
+        try Data("not a database".utf8).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        XCTAssertFalse(DeepScanService.isSQLite(at: url))
+    }
+
+    func testDirectDatabaseImportSkipsArchive() async throws {
+        let now = Date().timeIntervalSince1970
+        let sql = """
+        CREATE TABLE PLBatteryAgent_EventBackward_Battery (
+            id INTEGER PRIMARY KEY, timestamp REAL, CycleCount INTEGER,
+            DesignCapacity INTEGER, AppleRawMaxCapacity INTEGER,
+            AppleRawCurrentCapacity INTEGER, Temperature INTEGER, Voltage INTEGER
+        );
+        INSERT INTO PLBatteryAgent_EventBackward_Battery
+        VALUES (1, \(now), 258, 4500, 4300, 2000, 3080, 3980);
+        """
+        let url = try makeDatabase([sql])
+
+        let result = try await DeepScanService.shared.parse(url: url) { _, _ in }
+        XCTAssertEqual(result.directDatabase, true)
+        XCTAssertEqual(result.extraction["battery.cycleCount"], "258 次")
+        XCTAssertNotNil(result.powerlog)
+    }
 }

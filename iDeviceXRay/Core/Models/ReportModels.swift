@@ -176,6 +176,8 @@ public struct DeepScanResult: Codable, Hashable, Sendable {
     public let extraction: [String: String]
     /// Powerlog 解析出的电池历史。没有该文件时为 nil。
     public let powerlog: PowerlogSummary?
+    /// 直接导入的 SQLite（不经过 tar.gz）。可选字段，旧报告解码不受影响。
+    public let directDatabase: Bool?
     public let warnings: [String]
     public let durationSeconds: Double
 
@@ -187,6 +189,7 @@ public struct DeepScanResult: Codable, Hashable, Sendable {
         matchedFiles: [String],
         extraction: [String: String],
         powerlog: PowerlogSummary? = nil,
+        directDatabase: Bool? = nil,
         warnings: [String],
         durationSeconds: Double
     ) {
@@ -197,6 +200,7 @@ public struct DeepScanResult: Codable, Hashable, Sendable {
         self.matchedFiles = matchedFiles
         self.extraction = extraction
         self.powerlog = powerlog
+        self.directDatabase = directDatabase
         self.warnings = warnings
         self.durationSeconds = durationSeconds
     }

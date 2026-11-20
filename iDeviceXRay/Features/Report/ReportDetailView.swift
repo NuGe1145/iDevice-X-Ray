@@ -187,8 +187,12 @@ struct ReportDetailView: View {
                     .foregroundStyle(Theme.textPrimary)
 
                 HStack(spacing: 12) {
-                    infoPill("\(deep.entriesScanned) 条目")
-                    infoPill("\(deep.matchedFiles.count) 命中")
+                    if deep.directDatabase == true {
+                        infoPill("直读数据库")
+                    } else {
+                        infoPill("\(deep.entriesScanned) 条目")
+                        infoPill("\(deep.matchedFiles.count) 命中")
+                    }
                     infoPill(String(format: "%.1fs", deep.durationSeconds))
                 }
 

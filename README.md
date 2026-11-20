@@ -215,6 +215,17 @@ ChargeMonitor 每次 tick
 设置 › 隐私与安全性 › 分析与改进 › 分析数据 › sysdiagnose_*.tar.gz
 ```
 
+### 两种导入方式
+
+| | 整包 | 只传数据库 |
+|---|---|---|
+| 文件 | `sysdiagnose_*.tar.gz`，100–400MB | `CurrentPowerlog.PLSQL`，100–200MB |
+| 准备 | 手机上直接选 | 电脑解压后取出，AirDrop 到手机 |
+| 内容 | 文本日志 + Powerlog | 只有 Powerlog |
+| 适合 | 想同时核对温度/电压的文本日志 | 只关心容量、健康度与循环次数 |
+
+App 按文件头判断类型（`SQLite format 3\0`），不认扩展名——`.PLSQL` 被系统改名成 `.sqlite` 或干脆没有后缀也能导入。裸数据库直接交给 `PowerlogReader`，跳过 gunzip 与 tar 扫描，几秒出结果。
+
 ### 解析链路
 
 ```

@@ -57,6 +57,18 @@ final class DeepScanService: @unchecked Sendable {
         let localURL = try copyToTemporary(url: url)
         defer { try? FileManager.default.removeItem(at: localURL) }
 
+        // 单独传来的 Powerlog（电脑上解压后只取 CurrentPowerlog.PLSQL）不用走 tar，
+        // 直接当 SQLite 读。比传 300MB 整包快得多，内容却是同一份。
+        if Self.isSQLite(at: localURL) {
+            return runPowerlogOnly(
+                displayName: url.lastPathComponent,
+                localURL: localURL,
+                size: size,
+                started: started,
+                onProgress: onProgress
+            )
+        }
+
         // Powerlog 是几百 MB 的 SQLite，落在磁盘上给 SQLite 自己按页读，
         // 不能像日志文本那样整块进内存。
         let spillDirectory = FileManager.default.temporaryDirectory
@@ -141,8 +153,9 @@ final class DeepScanService: @unchecked Sendable {
     }
 
     private func copyToTemporary(url: URL) throws -> URL {
+        let ext = url.pathExtension.isEmpty ? "bin" : url.pathExtension
         let destination = FileManager.default.temporaryDirectory
-            .appendingPathComponent("sysdiagnose-\(UUID().uuidString).tar.gz")
+            .appendingPathComponent("import-\(UUID().uuidString).\(ext)")
         try? FileManager.default.removeItem(at: destination)
         do {
             try FileManager.default.copyItem(at: url, to: destination)
@@ -150,5 +163,45 @@ final class DeepScanService: @unchecked Sendable {
         } catch {
             throw DeepScanError.copyFailed
         }
+    }
+
+    // MARK: - 裸数据库
+
+    /// SQLite 文件头固定 16 字节。用它判断类型，比猜扩展名可靠 ——
+    /// 用户从「文件」里选的 .PLSQL 有时会被系统改名成 .sqlite 或没有扩展名。
+    static func isSQLite(at url: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        guard let head = try? handle.read(upToCount: 16), head.count == 16 else { return false }
+        return head.starts(with: Data("SQLite format 3\u{0}".utf8))
+    }
+
+    private func runPowerlogOnly(
+        displayName: String,
+        localURL: URL,
+        size: Int64,
+        started: Date,
+        onProgress: @escaping (Double, String) -> Void
+    ) -> DeepScanResult {
+        onProgress(0.35, "读取 Powerlog 电池表…")
+        let read = PowerlogReader.read(url: localURL)
+        onProgress(0.95, "解析完成")
+
+        var warnings = read.notes
+        if read.summary == nil {
+            warnings.append("这个数据库里没有找到 PLBatteryAgent* 电池表，可能不是 powerlog")
+        }
+
+        return DeepScanResult(
+            fileName: displayName,
+            fileSizeBytes: size,
+            entriesScanned: 0,
+            matchedFiles: [displayName],
+            extraction: read.summary?.extraction ?? [:],
+            powerlog: read.summary,
+            directDatabase: true,
+            warnings: Array(warnings.prefix(8)),
+            durationSeconds: Date().timeIntervalSince(started)
+        )
     }
 }

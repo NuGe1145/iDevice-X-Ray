@@ -158,7 +158,9 @@ struct ReportDocumentView: View {
             Text("深度数据来源")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.white)
-            Text("\(deep.fileName) · 扫描 \(deep.entriesScanned) 个条目 · 命中 \(deep.matchedFiles.count) 个文件")
+            Text(deep.directDatabase == true
+                 ? "\(deep.fileName) · 直接读取 Powerlog 数据库"
+                 : "\(deep.fileName) · 扫描 \(deep.entriesScanned) 个条目 · 命中 \(deep.matchedFiles.count) 个文件")
                 .font(.system(size: 9))
                 .foregroundStyle(Color.white.opacity(0.5))
             ForEach(deep.warnings.prefix(3), id: \.self) { warning in

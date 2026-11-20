@@ -58,11 +58,12 @@ struct DeepScanView: View {
 
     private var allowedTypes: [UTType] {
         var types: [UTType] = []
-        if let gz = UTType(filenameExtension: "gz") { types.append(gz) }
-        if let tgz = UTType(filenameExtension: "tgz") { types.append(tgz) }
-        if let tar = UTType(filenameExtension: "tar") { types.append(tar) }
-        if !types.isEmpty { return types }
-        return [.data]
+        for ext in ["gz", "tgz", "tar", "plsql", "sqlite", "db"] {
+            if let type = UTType(filenameExtension: ext) { types.append(type) }
+        }
+        // .PLSQL 常被系统判成动态类型，不收宽就只能看到灰掉的文件
+        types.append(.data)
+        return types
     }
 
     // MARK: - 说明
@@ -81,6 +82,16 @@ struct DeepScanView: View {
                 step(2, "等待 1–3 分钟，系统在后台生成压缩包")
                 step(3, "打开「设置 › 隐私与安全性 › 分析与改进 › 分析数据」")
                 step(4, "找到 sysdiagnose 开头的 .tar.gz，分享到「文件」，再从这里导入")
+
+                HStack(alignment: .top, spacing: 6) {
+                    Image(systemName: "arrow.down.doc")
+                        .font(.system(size: 10))
+                    Text("更轻的方式：在电脑上解压诊断包，只取 logs/powerlogs/CurrentPowerlog.PLSQL（有同名 -wal 就一起带上），AirDrop 到手机直接导入。内容一样，不用传整个包。")
+                        .font(.system(size: 10))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .foregroundStyle(Theme.cyan)
+                .padding(.top, 2)
 
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "lock.shield")
@@ -181,8 +192,12 @@ struct DeepScanView: View {
                     .truncationMode(.middle)
 
                 HStack(spacing: 8) {
-                    pill("\(result.entriesScanned) 条目")
-                    pill("\(result.matchedFiles.count) 命中")
+                    if result.directDatabase == true {
+                        pill("直读数据库")
+                    } else {
+                        pill("\(result.entriesScanned) 条目")
+                        pill("\(result.matchedFiles.count) 命中")
+                    }
                     pill(String(format: "%.1fs", result.durationSeconds))
                 }
 
