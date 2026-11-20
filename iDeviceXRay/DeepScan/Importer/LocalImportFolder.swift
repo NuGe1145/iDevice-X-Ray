@@ -43,7 +43,7 @@ enum LocalImportFolder {
             found.append(LocalImportCandidate(
                 url: url,
                 sizeBytes: Int64(size),
-                modified: values.contentModificationDate
+                modified: values.contentModificationDate ?? .distantPast
             ))
         }
 
@@ -56,7 +56,7 @@ struct LocalImportCandidate: Identifiable, Sendable {
 
     let url: URL
     let sizeBytes: Int64
-    let modified: Date?
+    let modified: Date
 
     var name: String { url.lastPathComponent }
 
