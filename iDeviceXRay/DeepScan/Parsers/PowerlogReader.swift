@@ -284,17 +284,17 @@ enum PowerlogReader {
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else { return [] }
         defer { sqlite3_finalize(statement) }
 
-        let count = sqlite3_column_count(statement)
+        let count = Int(sqlite3_column_count(statement))
         var names: [String] = []
         for index in 0..<count {
-            names.append(String(cString: sqlite3_column_name(statement, index)))
+            names.append(String(cString: sqlite3_column_name(statement, Int32(index))))
         }
 
         var rows: [[String: Double]] = []
         while sqlite3_step(statement) == SQLITE_ROW {
             var row: [String: Double] = [:]
-            for index in 0..<count where sqlite3_column_type(statement, index) != SQLITE_NULL {
-                row[names[index]] = sqlite3_column_double(statement, index)
+            for index in 0..<count where sqlite3_column_type(statement, Int32(index)) != SQLITE_NULL {
+                row[names[index]] = sqlite3_column_double(statement, Int32(index))
             }
             rows.append(row)
         }
