@@ -12,6 +12,7 @@ enum DataFusion {
                 // 已经是实时读到的值就不覆盖：诊断档案是几十分钟前的快照，
                 // 拿它盖掉传感器刚读的温度是把「实时」换成「过时」，属于倒退。
                 guard field.confidence < .verified else { return field }
+                guard field.source != .privateAPI else { return field }
                 guard let raw = deep.extraction[field.key], !raw.isEmpty else { return field }
                 return ReportField(
                     key: field.key,

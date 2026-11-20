@@ -88,6 +88,20 @@ struct BatteryEngine {
             ))
         }
 
+        fields.append(.unavailable(
+            key: "battery.maxCapacity",
+            title: "实际最大容量",
+            value: "",
+            reason: "需导入含 powerlog 的诊断档案，取电池表里的最大容量记录"
+        ))
+
+        fields.append(.unavailable(
+            key: "battery.historySpan",
+            title: "历史记录跨度",
+            value: "",
+            reason: "需导入含 powerlog 的诊断档案，按电池记录的首末时间计算"
+        ))
+
         return fields
     }
 

@@ -57,12 +57,23 @@ final class DeepScanService: @unchecked Sendable {
         let localURL = try copyToTemporary(url: url)
         defer { try? FileManager.default.removeItem(at: localURL) }
 
+        // Powerlog 是几百 MB 的 SQLite，落在磁盘上给 SQLite 自己按页读，
+        // 不能像日志文本那样整块进内存。
+        let spillDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("powerlog-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: spillDirectory) }
+
         guard let handle = try? FileHandle(forReadingFrom: localURL) else {
             throw DeepScanError.copyFailed
         }
         defer { try? handle.close() }
 
         let scanner = TarScanner(keywords: DeepParser.interestingKeywords)
+        scanner.spillPlan = { name, _ in
+            let lower = name.lowercased()
+            guard lower.hasSuffix("currentpowerlog.plsql") else { return nil }
+            return spillDirectory.appendingPathComponent("CurrentPowerlog.PLSQL")
+        }
         let decoder = try GzipStreamDecoder()
 
         var readBytes: Int64 = 0
@@ -87,13 +98,31 @@ final class DeepScanService: @unchecked Sendable {
 
         onProgress(0.9, "抽取电池与显示字段…")
 
-        let outcome = DeepParser.parse(files: scanner.captured)
+        var outcome = DeepParser.parse(files: scanner.captured)
+
+        var powerlogSummary: PowerlogSummary?
+        if !scanner.spilledFiles.isEmpty {
+            onProgress(0.94, "读取 Powerlog 电池历史…")
+            for item in scanner.spilledFiles {
+                let read = PowerlogReader.read(url: item.url)
+                if let summary = read.summary {
+                    powerlogSummary = summary
+                    for (key, value) in summary.extraction {
+                        outcome.values[key] = value
+                    }
+                }
+                outcome.notes.append(contentsOf: read.notes)
+            }
+        }
 
         onProgress(1.0, "解析完成")
 
         var warnings = outcome.notes
         if scanner.matchedFiles.isEmpty {
             warnings.append("未在归档中找到电池或显示相关日志，请确认导入的是 sysdiagnose 压缩包")
+        }
+        if powerlogSummary == nil {
+            warnings.append("档案里没有可用的 powerlog，循环次数与电池历史无法核对")
         }
         if outcome.values.isEmpty {
             warnings.append("未能提取到有效字段，可能是系统版本差异导致日志格式变化")
@@ -105,6 +134,7 @@ final class DeepScanService: @unchecked Sendable {
             entriesScanned: scanner.entriesScanned,
             matchedFiles: Array(scanner.matchedFiles.prefix(20)),
             extraction: outcome.values,
+            powerlog: powerlogSummary,
             warnings: Array(warnings.prefix(8)),
             durationSeconds: Date().timeIntervalSince(started)
         )

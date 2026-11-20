@@ -206,6 +206,10 @@ struct DeepScanView: View {
                     .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
 
+                if let powerlog = result.powerlog, powerlog.hasAnything {
+                    PowerlogHistoryCard(summary: powerlog)
+                }
+
                 ForEach(result.warnings, id: \.self) { warning in
                     HStack(alignment: .top, spacing: 5) {
                         Image(systemName: "exclamationmark.triangle")
@@ -244,6 +248,8 @@ struct DeepScanView: View {
         case "battery.temperature": return "电池温度"
         case "battery.voltage": return "电池电压"
         case "battery.designCapacity": return "设计容量"
+        case "battery.maxCapacity": return "实际最大容量"
+        case "battery.historySpan": return "历史记录跨度"
         case "display.panelCode": return "显示组件 ID"
         default: return key
         }

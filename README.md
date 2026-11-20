@@ -189,7 +189,8 @@ ChargeMonitor（@MainActor @Observable）
 tar.gz (100–400MB)
   → 流式 gunzip（Compression 框架，64KB 缓冲，内存恒定）
   → tar 512 字节块扫描（只读关键词命中的条目，其余跳过）
-  → 文本正则抽取（CycleCount / DesignCapacity / AppleRawMaxCapacity / Temperature / Voltage）
+  ├─ 文本日志 → 正则抽取（CycleCount / DesignCapacity / AppleRawMaxCapacity / Temperature / Voltage）
+  └─ CurrentPowerlog.PLSQL → 落盘，用 SQLite 只读打开，按列名认角色后查询
   → 与实时数据融合；已实时读到的字段不会被档案覆盖
 ```
 
@@ -197,13 +198,31 @@ tar.gz (100–400MB)
 
 - `GzipStreamDecoder` 自己解析 gzip 头（FEXTRA / FNAME / FCOMMENT / FHCRC），再交给 `compression_stream` 增量解压
 - `TarScanner` 用状态机推进读指针，1MB 以上才做一次数组压缩
-- 单条目上限 8MB，单文件上限 800MB，解析完成后删除临时文件
+- 文本条目上限 8MB；Powerlog 例外，直接写磁盘（`spillPlan`），不经过内存——200MB 的库读进 `Data` 就是一次必然的 OOM
+- 单文件上限 800MB，解析完成后删除全部临时文件
+
+### Powerlog：唯一能拿到「历史」的数据源
+
+`logs/powerlogs/CurrentPowerlog.PLSQL` 是 powerlogd 持续写入的能耗数据库，iOS 上约 700 张表。它给的不是当下读数，而是过去几个月：
+
+| 能解出 | 来源列（按版本变化） |
+|---|---|
+| 循环次数 | `CycleCount` |
+| 设计容量 / 实际最大容量 | `DesignCapacity` / `AppleRawMaxCapacity` |
+| 健康度 | 上面两者相除 |
+| 容量衰减曲线 | 每行的最大容量 ÷ 设计容量 |
+| 温度分布 | `Temperature` |
+
+`PowerlogReader` **不写死表结构**：先列出所有 `PLBatteryAgent*` 表，对每张表读 `PRAGMA table_info`，按列名把列分配成「角色」，再挑角色命中最多的一张查。写死列名一定会在某个 iOS 版本上失效，而这张表每代都在变。实际命中的表名与列名会显示在 App 里，出问题时截一张图就能定位。
+
+时间戳有 Unix 秒、毫秒、Apple 纪元三种写法，温度有 °C、0.1°C、0.01°C、0.1K 四种写法，都按「结果落在合理区间」反推，而不是猜。
 
 ### 已知限制
 
 1. **格式随系统版本变化**。正则失效时会明确提示「未能提取到有效字段」，而不是静默显示空值。
 2. **温度单位不确定**。`AppleSmartBattery` 的 `Temperature` 通常是 0.1K，个别版本是 0.1°C，代码做区间判断后丢弃越界值。
 3. **面板供应商不可映射**。即使拿到 `DisplayVendorID`，也没有可靠的公开映射表，因此只显示 ID。
+4. **Powerlog 可能少最近几小时**。档案里通常只有 `CurrentPowerlog.PLSQL`，不带 `-wal`，未 checkpoint 的记录不在其中。
 
 ---
 

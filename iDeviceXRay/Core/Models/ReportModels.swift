@@ -171,6 +171,8 @@ public struct DeepScanResult: Codable, Hashable, Sendable {
     public let matchedFiles: [String]
     /// 归一化后的键值，如 ["battery.cycleCount": "258"]
     public let extraction: [String: String]
+    /// Powerlog 解析出的电池历史。没有该文件时为 nil。
+    public let powerlog: PowerlogSummary?
     public let warnings: [String]
     public let durationSeconds: Double
 
@@ -181,6 +183,7 @@ public struct DeepScanResult: Codable, Hashable, Sendable {
         entriesScanned: Int,
         matchedFiles: [String],
         extraction: [String: String],
+        powerlog: PowerlogSummary? = nil,
         warnings: [String],
         durationSeconds: Double
     ) {
@@ -190,6 +193,7 @@ public struct DeepScanResult: Codable, Hashable, Sendable {
         self.entriesScanned = entriesScanned
         self.matchedFiles = matchedFiles
         self.extraction = extraction
+        self.powerlog = powerlog
         self.warnings = warnings
         self.durationSeconds = durationSeconds
     }

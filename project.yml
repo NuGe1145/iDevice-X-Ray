@@ -25,11 +25,13 @@ targets:
       - path: iDeviceXRay
         excludes:
           - "Info.plist"
+    dependencies:
+      - sdk: libsqlite3.tbd
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.idevicexray.app
         PRODUCT_NAME: iDeviceXRay
-        MARKETING_VERSION: "0.3.0"
+        MARKETING_VERSION: "0.4.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"
         INFOPLIST_FILE: iDeviceXRay/Info.plist
@@ -76,6 +78,7 @@ targets:
       - path: Tests
     dependencies:
       - target: iDeviceXRay
+      - sdk: libsqlite3.tbd
 
 schemes:
   iDeviceXRay:

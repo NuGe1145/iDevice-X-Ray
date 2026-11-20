@@ -1,18 +1,28 @@
 import Foundation
 
 /// 流式 tar 扫描器。
-/// 只把「文件名命中关键词」的条目读进内存，其余条目按 512 字节块直接跳过，
+/// 只把「文件名命中关键词」且体积不大的条目读进内存，其余条目按 512 字节块直接跳过，
 /// 因此 300MB 的诊断包也不会撑爆内存。
+///
+/// 例外是 `spillPlan`：命中它的条目（目前只有 Powerlog 的 SQLite）直接写到磁盘，
+/// 既不进内存也不做文本解析——一个 200MB 的库读进 `Data` 就是一次必然的 OOM。
 final class TarScanner {
 
     private final class ActiveEntry {
         var remaining: Int
         let padding: Int
         let sink: (Data) -> Void
+        let onClose: (() -> Void)?
 
-        init(remaining: Int, padding: Int, sink: @escaping (Data) -> Void) {
+        init(
+            remaining: Int,
+            padding: Int,
+            onClose: (() -> Void)? = nil,
+            sink: @escaping (Data) -> Void
+        ) {
             self.remaining = remaining
             self.padding = padding
+            self.onClose = onClose
             self.sink = sink
         }
     }
@@ -33,14 +43,20 @@ final class TarScanner {
     let keywords: [String]
     let maxEntryBytes: Int
 
+    /// 返回落盘路径表示该条目要写文件。返回 nil 表示按普通规则处理。
+    var spillPlan: ((_ name: String, _ size: Int) -> URL?)?
+
     private var buffer = [UInt8]()
     private var readIndex = 0
     private var current: ActiveEntry?
     private var skipRemaining = 0
     private var collectors: [Collector] = []
 
+    private var spillBudget = 720 * 1024 * 1024
+
     private(set) var entriesScanned = 0
     private(set) var matchedFiles: [String] = []
+    private(set) var spilledFiles: [(name: String, url: URL, bytes: Int)] = []
 
     init(keywords: [String], maxEntryBytes: Int = 8 * 1024 * 1024) {
         self.keywords = keywords
@@ -81,6 +97,7 @@ final class TarScanner {
                 entry.remaining -= take
 
                 if entry.remaining == 0 {
+                    entry.onClose?()
                     skipRemaining += entry.padding
                     current = nil
                 } else {
@@ -130,6 +147,14 @@ final class TarScanner {
                 continue
             }
 
+            // 落盘优先：Powerlog 这类条目即使体积小也不该按文本处理
+            if size > 0, size <= spillBudget, let url = spillPlan?(name, size) {
+                if startSpill(name: name, size: size, padding: padding, url: url) {
+                    spillBudget -= size
+                    continue
+                }
+            }
+
             let matched = size > 0 && size <= maxEntryBytes && isInteresting(name)
             if matched {
                 matchedFiles.append(name)
@@ -142,6 +167,27 @@ final class TarScanner {
                 skipRemaining += size + padding
             }
         }
+    }
+
+    private func startSpill(name: String, size: Int, padding: Int, url: URL) -> Bool {
+        try? FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(atPath: url.path, contents: nil)
+
+        guard let handle = FileHandle(forWritingAtPath: url.path) else { return false }
+
+        spilledFiles.append((name, url, size))
+        matchedFiles.append(name)
+        current = ActiveEntry(
+            remaining: size,
+            padding: padding,
+            onClose: { try? handle.close() }
+        ) { chunk in
+            try? handle.write(contentsOf: chunk)
+        }
+        return true
     }
 
     private func isInteresting(_ name: String) -> Bool {
