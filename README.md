@@ -272,6 +272,7 @@ tar.gz (100–400MB)
 - [x] Phase 1 完整 UI 与报告导出（PDF / JSON / 长图）
 - [x] Phase 2 Sysdiagnose 导入与流式解析
 - [x] Phase 3 私有接口传感器（温度矩阵 / 电源轨 / 适配器）
+- [x] Phase 3.5 本机历史（日聚合 + 充电积分容量估算，不需要导入任何文件）
 - [ ] Phase 4 真机字段校准（iPhone 17 及 iPad 的 SMC 键与量程）
 - [ ] Phase 5 验机规则引擎（健康度 × 循环次数交叉校验、充电链路异常判定）
 - [ ] Phase 6 机型库扩充至 iPhone 17 / iPad 全系

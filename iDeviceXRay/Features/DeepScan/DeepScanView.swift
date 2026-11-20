@@ -72,6 +72,11 @@ struct DeepScanView: View {
             VStack(alignment: .leading, spacing: 12) {
                 SectionHeader(title: "如何获取诊断档案", symbol: "questionmark.circle", accent: Theme.cyan)
 
+                Text("可选步骤。不导入也能看到实时数据和本机历史；导入之后才有安装前的记录与系统原始循环次数。")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
                 step(1, "同时按住「音量 +」「音量 −」和「侧边按钮」约 1.5 秒，屏幕会闪一下")
                 step(2, "等待 1–3 分钟，系统在后台生成压缩包")
                 step(3, "打开「设置 › 隐私与安全性 › 分析与改进 › 分析数据」")
