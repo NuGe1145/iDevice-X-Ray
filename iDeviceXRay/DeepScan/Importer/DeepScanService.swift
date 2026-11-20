@@ -195,6 +195,15 @@ final class DeepScanService: @unchecked Sendable {
     }
 
     private func copyToTemporary(url: URL) throws -> URL {
+        // 选择器用 asCopy 时，系统已经把文件复制进 App 的临时目录了。
+        // sysdiagnose 常有 500MB+，再复制一遍等于白占一倍空间，直接用。
+        let candidate = url.standardizedFileURL.resolvingSymlinksInPath().path
+        let tmpRoot = FileManager.default.temporaryDirectory
+            .standardizedFileURL.resolvingSymlinksInPath().path
+        if candidate.hasPrefix(tmpRoot) {
+            return url
+        }
+
         let ext = url.pathExtension.isEmpty ? "bin" : url.pathExtension
         let destination = FileManager.default.temporaryDirectory
             .appendingPathComponent("import-\(UUID().uuidString).\(ext)")

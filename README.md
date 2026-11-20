@@ -226,6 +226,16 @@ ChargeMonitor 每次 tick
 
 App 按文件头判断类型（`SQLite format 3\0`），不认扩展名——`.PLSQL` 被系统改名成 `.sqlite` 或干脆没有后缀也能导入。裸数据库直接交给 `PowerlogReader`，跳过 gunzip 与 tar 扫描，几秒出结果。
 
+### 三条入口
+
+| 入口 | 怎么走 | 说明 |
+|---|---|---|
+| 系统选择器 | 深度检测 › 选择诊断档案 | 自己用 UIKit 呈现，`asCopy` 由系统负责复制，绕开 SwiftUI 在 iPad 上的呈现层级 |
+| App 文件夹 | 文件 › 我的 iPhone/iPad › iDevice X-Ray 放文件 | 不经过选择器，进来直接列表里点 |
+| 其他 App 共享 | 文件里长按 › 共享 › iDevice X-Ray | 走 `onOpenURL`，自动跳转并开始解析 |
+
+三条路径最后都汇到同一个解析器，判定只看文件头：gzip 走 tar 扫描，SQLite 走 Powerlog 直读，zip 和纯文本会明确告诉用户该怎么做，不会给一句「内容无法识别」。
+
 ### 解析链路
 
 ```

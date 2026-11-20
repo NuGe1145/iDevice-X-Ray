@@ -1,13 +1,12 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct DeepScanView: View {
     let initialURL: URL?
     let onComplete: (DeepScanResult) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
-    @State private var showImporter = false
     @State private var isParsing = false
     @State private var progress: Double = 0
     @State private var stage = ""
@@ -15,6 +14,7 @@ struct DeepScanView: View {
     @State private var errorText = ""
     @State private var showError = false
     @State private var didAutoStart = false
+    @State private var localFiles: [LocalImportCandidate] = []
 
     init(initialURL: URL? = nil, onComplete: @escaping (DeepScanResult) -> Void) {
         self.initialURL = initialURL
@@ -26,6 +26,10 @@ struct DeepScanView: View {
             PageContainer {
                 introCard
                 importCard
+
+                if !localFiles.isEmpty {
+                    localFilesCard
+                }
 
                 if isParsing {
                     progressCard
@@ -48,35 +52,28 @@ struct DeepScanView: View {
             .toolbarBackground(Theme.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
         }
-        // 挂在 NavigationStack 外层：这个页面本身是从 sheet 里弹出来的，
-        // 嵌在里面的 fileImporter 在 iPhone 上偶尔不会呈现，点了像没反应。
-        .fileImporter(
-            isPresented: $showImporter,
-            allowedContentTypes: allowedTypes,
-            allowsMultipleSelection: false
-        ) { outcome in
-            handleImport(outcome)
-        }
+        // 不用 SwiftUI 的 .fileImporter：这个页面本身是从 sheet 里弹出来的，
+        // 再往上一层呈现选择器，iPad 上会出现「文件能看见、点了一点反应没有」。
+        // 改由 UIViewController 直接 present，见 DocumentImporter。
         .alert("无法解析", isPresented: $showError) {
             Button("好", role: .cancel) {}
         } message: {
             Text(errorText)
         }
         .task {
+            await refreshLocalFiles()
             guard !didAutoStart, let initialURL else { return }
             didAutoStart = true
             start(initialURL)
         }
+        .onChange(of: scenePhase) { _, phase in
+            // 用户去「文件」里放好文件再切回来，列表要能立刻看到
+            if phase == .active {
+                Task { await refreshLocalFiles() }
+            }
+        }
         .preferredColorScheme(.dark)
     }
-
-    /// 只放开 `.item`，也就是文件 App 里的所有文件。
-    ///
-    /// 之前按扩展名拼类型（gz / plsql / db…）。`.plsql`、`.db` 没有被系统注册，
-    /// `UTType(filenameExtension:)` 返回的是 `dyn.*` 动态类型。把动态类型塞进
-    /// 文档选择器的过滤条件，整套谓词会失效：表现就是文件全部变灰、一个都点不动，
-    /// 连本来合法的 .tar.gz 也一起被禁。改成不过滤，类型判断交给文件头。
-    private var allowedTypes: [UTType] { [.item] }
 
     // MARK: - 说明
 
@@ -138,7 +135,7 @@ struct DeepScanView: View {
 
     private var importCard: some View {
         Button {
-            showImporter = true
+            startPicking()
         } label: {
             VStack(spacing: 10) {
                 Image(systemName: "arrow.down.doc")
@@ -171,6 +168,65 @@ struct DeepScanView: View {
         }
         .buttonStyle(.plain)
         .disabled(isParsing)
+    }
+
+    /// 兜底入口：不经过系统选择器，直接读 App 自己的 Documents 目录。
+    /// 用户把文件放进「我的 iPhone / iPad → iDevice X-Ray」就会出现在这里。
+    private var localFilesCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    SectionHeader(title: "App 文件夹里找到的文件", symbol: "folder.fill", accent: Theme.cyan)
+                    Spacer()
+                    Button {
+                        Task { await refreshLocalFiles() }
+                    } label: {
+                        Text("刷新")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(Theme.cyan)
+                    }
+                }
+
+                Text("在「文件」App 的「我的 iPhone / iPad → iDevice X-Ray」里放下 sysdiagnose，这里会直接列出来，点一下就开始解析。")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(localFiles) { file in
+                    Button {
+                        start(file.url)
+                    } label: {
+                        HStack(spacing: 9) {
+                            Image(systemName: "doc.zipper")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Theme.cyan)
+                                .frame(width: 16)
+
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(file.name)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(Theme.textPrimary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Text(file.sizeText)
+                                    .font(.system(size: 9))
+                                    .foregroundStyle(Theme.textTertiary)
+                            }
+
+                            Spacer(minLength: 4)
+
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(Theme.textTertiary)
+                        }
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isParsing)
+                }
+            }
+        }
     }
 
     private var progressCard: some View {
@@ -303,15 +359,28 @@ struct DeepScanView: View {
 
     // MARK: - 行为
 
-    private func handleImport(_ outcome: Result<[URL], Error>) {
+    private func handleImport(_ outcome: Result<URL, Error>) {
         switch outcome {
-        case .success(let urls):
-            guard let url = urls.first else { return }
+        case .success(let url):
             start(url)
         case .failure(let error):
             errorText = error.localizedDescription
             showError = true
         }
+    }
+
+    private func startPicking() {
+        DocumentImporter.shared.present { outcome in
+            handleImport(outcome)
+        }
+    }
+
+    /// 扫 Documents 目录可能要读几十个文件的头，放到后台，别卡住首屏
+    private func refreshLocalFiles() async {
+        let files = await Task.detached(priority: .utility) {
+            LocalImportFolder.candidates()
+        }.value
+        localFiles = files
     }
 
     private func start(_ url: URL) {
