@@ -11,7 +11,8 @@ enum DeepParser {
 
     static let interestingKeywords = [
         "battery", "powerlog", "power", "ioreg", "iokit",
-        "display", "iomfb", "backlight", "applearmio", "device tree"
+        "display", "iomfb", "backlight", "applearmio", "device tree",
+        "iodevicetree", "panel"
     ]
 
     static func parse(files: [(name: String, data: Data)]) -> Outcome {
@@ -133,6 +134,13 @@ enum BatteryLogParser {
 
 enum DisplayLogParser {
 
+    /// `ioreg/IODeviceTree` 里 disp0 节点的面板序列号。前三位是供应商代码，
+    /// 这是 iOS 上唯一能拿到面板厂商的路径（公开 API 完全没有）。
+    private static let panelSerialRegexes = make([
+        #"raw[-\s]?panel[-\s]?serial[-\s]?number[^A-Za-z0-9]{1,8}([A-Za-z0-9]{4,})"#,
+        #""raw-panel-serial-number"\s*=\s*"([^"]+)""#
+    ])
+
     private static let vendorRegexes = make([
         #"display[_\s]?vendor[_\s]?id["\s:=]{1,8}(0x[0-9a-fA-F]+|\d+)"#,
         #""DisplayVendorID"\s*=\s*(\d+)"#
@@ -143,7 +151,24 @@ enum DisplayLogParser {
         #""ProductID"\s*=\s*(\d+)"#
     ])
 
+    /// 前缀对照表。多来源实测一致的才收录；对不上就明说「未收录」，
+    /// 不拿相近代码去猜厂商。
+    private static let vendorCodes: [String: String] = [
+        "G9N": "三星显示", "G9P": "三星显示", "G9Q": "三星显示", "G9R": "三星显示",
+        "GVC": "LG Display", "GH3": "LG Display", "GH2": "LG Display", "GHK": "LG Display",
+        "C3": "京东方", "C6": "京东方"
+    ]
+
     static func parse(text: String, fileName: String, into outcome: inout DeepParser.Outcome) {
+        if let serial = firstString(panelSerialRegexes, in: text), serial.count >= 3 {
+            let code = String(serial.prefix(3)).uppercased()
+            outcome.values["display.vendor"] = vendorName(for: serial) ?? "未收录（代码 \(code)）"
+            // 序列号是设备指纹，只留供应商前缀，其余不写进报告
+            outcome.values["display.panelCode"] = "\(code)•••"
+            outcome.notes.append("\(fileName)：面板代码 \(code) 取自 IODeviceTree，序列号其余位未保留")
+            return
+        }
+
         let vendor = firstString(vendorRegexes, in: text)
         let product = firstString(productRegexes, in: text)
 
@@ -154,7 +179,17 @@ enum DisplayLogParser {
         if let product { parts.append("Product \(product)") }
 
         outcome.values["display.panelCode"] = parts.joined(separator: " · ")
-        outcome.notes.append("\(fileName)：取到显示组件 ID，但厂商名无法由 ID 可靠映射，未做推断")
+        outcome.notes.append("\(fileName)：只取到显示组件 ID，厂商名无法由 ID 可靠映射，未做推断")
+    }
+
+    /// 从完整序列号识别厂商。两位代码（C3/C6）也要能命中。
+    static func vendorName(for serial: String) -> String? {
+        let upper = serial.uppercased()
+        for length in [3, 2] {
+            guard upper.count >= length else { continue }
+            if let name = vendorCodes[String(upper.prefix(length))] { return name }
+        }
+        return nil
     }
 
     private static func make(_ patterns: [String]) -> [NSRegularExpression] {

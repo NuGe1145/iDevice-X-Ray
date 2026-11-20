@@ -3,6 +3,7 @@ import Foundation
 enum DeepScanError: LocalizedError {
     case fileTooLarge(Int64)
     case copyFailed
+    case notDownloaded
     case unreadable
 
     var errorDescription: String? {
@@ -10,9 +11,11 @@ enum DeepScanError: LocalizedError {
         case .fileTooLarge(let size):
             return "文件 \(String(format: "%.0f", Double(size) / 1_048_576)) MB，超过 800 MB 上限"
         case .copyFailed:
-            return "无法读取该文件，请重新从「文件」App 选择"
+            return "无法读取该文件。如果它来自 iCloud，先在「文件」里打开一次；也可以重新选择一次"
+        case .notDownloaded:
+            return "文件还在 iCloud 里，没有下载到本机。先在「文件」App 中打开它，等下载完成后再导入"
         case .unreadable:
-            return "文件内容无法解析"
+            return "文件是空的或内容无法识别"
         }
     }
 }
@@ -51,7 +54,11 @@ final class DeepScanService: @unchecked Sendable {
         let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
         let size = (attributes?[.size] as? NSNumber)?.int64Value ?? 0
 
-        guard size > 0 else { throw DeepScanError.unreadable }
+        guard size > 0 else {
+            // iCloud 占位文件的 size 也是 0，先分清「没下载」和「真的空」
+            if isNotDownloaded(url) { throw DeepScanError.notDownloaded }
+            throw DeepScanError.unreadable
+        }
         guard size <= maxFileSize else { throw DeepScanError.fileTooLarge(size) }
 
         let localURL = try copyToTemporary(url: url)
@@ -161,8 +168,16 @@ final class DeepScanService: @unchecked Sendable {
             try FileManager.default.copyItem(at: url, to: destination)
             return destination
         } catch {
+            if isNotDownloaded(url) { throw DeepScanError.notDownloaded }
             throw DeepScanError.copyFailed
         }
+    }
+
+    private func isNotDownloaded(_ url: URL) -> Bool {
+        guard let values = try? url.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey]) else {
+            return false
+        }
+        return values.ubiquitousItemDownloadingStatus == .notDownloaded
     }
 
     // MARK: - 裸数据库

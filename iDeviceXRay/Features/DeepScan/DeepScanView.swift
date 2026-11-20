@@ -2,6 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct DeepScanView: View {
+    let initialURL: URL?
     let onComplete: (DeepScanResult) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -13,6 +14,12 @@ struct DeepScanView: View {
     @State private var result: DeepScanResult?
     @State private var errorText = ""
     @State private var showError = false
+    @State private var didAutoStart = false
+
+    init(initialURL: URL? = nil, onComplete: @escaping (DeepScanResult) -> Void) {
+        self.initialURL = initialURL
+        self.onComplete = onComplete
+    }
 
     var body: some View {
         NavigationStack {
@@ -40,18 +47,25 @@ struct DeepScanView: View {
             }
             .toolbarBackground(Theme.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .fileImporter(
-                isPresented: $showImporter,
-                allowedContentTypes: allowedTypes,
-                allowsMultipleSelection: false
-            ) { outcome in
-                handleImport(outcome)
-            }
-            .alert("无法解析", isPresented: $showError) {
-                Button("好", role: .cancel) {}
-            } message: {
-                Text(errorText)
-            }
+        }
+        // 挂在 NavigationStack 外层：这个页面本身是从 sheet 里弹出来的，
+        // 嵌在里面的 fileImporter 在 iPhone 上偶尔不会呈现，点了像没反应。
+        .fileImporter(
+            isPresented: $showImporter,
+            allowedContentTypes: allowedTypes,
+            allowsMultipleSelection: false
+        ) { outcome in
+            handleImport(outcome)
+        }
+        .alert("无法解析", isPresented: $showError) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(errorText)
+        }
+        .task {
+            guard !didAutoStart, let initialURL else { return }
+            didAutoStart = true
+            start(initialURL)
         }
         .preferredColorScheme(.dark)
     }
@@ -132,11 +146,15 @@ struct DeepScanView: View {
                     .font(.system(size: 26, weight: .light))
                     .foregroundStyle(Theme.primaryLight)
 
-                Text("选择 sysdiagnose 压缩包")
+                Text("选择诊断档案")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.textPrimary)
 
-                Text("支持 .tar.gz / .tgz，建议小于 500 MB")
+                Text("支持 .tar.gz / .tgz / .PLSQL，建议小于 500 MB")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.textTertiary)
+
+                Text("也可以在「文件」里长按文件 → 共享 → iDevice X-Ray")
                     .font(.system(size: 10))
                     .foregroundStyle(Theme.textTertiary)
             }

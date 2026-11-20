@@ -10,6 +10,7 @@ struct HomeView: View {
     @State private var sheet: HomeSheet?
     @State private var didAutoScan = false
     @State private var energy = ChargeMonitor.shared
+    @State private var intake = DeepScanCoordinator.shared
     @State private var isPlugged = false
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
@@ -37,11 +38,23 @@ struct HomeView: View {
                 didAutoScan = true
                 await scan(deep: nil, save: false)
             }
+            .onAppear {
+                // 冷启动、或从别的 Tab 切回来时，补收一次外部打开的 URL
+                if let url = intake.consume() {
+                    sheet = .deepScan(url)
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryStateDidChangeNotification)) { _ in
                 syncChargingMonitor()
             }
             .onChange(of: scenePhase) { _, phase in
                 energy.setForeground(phase == .active)
+            }
+            .onChange(of: intake.pendingURL) { _, url in
+                // 从「文件」App 用本 App 打开时，直接把文件送进深度检测
+                guard let url else { return }
+                _ = intake.consume()
+                sheet = .deepScan(url)
             }
             .onDisappear {
                 energy.end(chargeToken)
@@ -197,7 +210,7 @@ struct HomeView: View {
             .disabled(scanner.isScanning)
 
             Button {
-                sheet = .deepScan
+                sheet = .deepScan(nil)
             } label: {
                 Label("深度检测", systemImage: "doc.text.magnifyingglass")
             }
@@ -345,8 +358,8 @@ struct HomeView: View {
             SectionDetailView(section: section)
         case .report(let report):
             ReportDetailView(report: report)
-        case .deepScan:
-            DeepScanView { deep in
+        case .deepScan(let url):
+            DeepScanView(initialURL: url) { deep in
                 sheet = nil
                 Task { await scan(deep: deep, save: true) }
             }
@@ -359,13 +372,13 @@ struct HomeView: View {
 private enum HomeSheet: Identifiable {
     case section(ReportSection)
     case report(ScanReport)
-    case deepScan
+    case deepScan(URL?)
 
     var id: String {
         switch self {
         case .section(let section): return "section-\(section.key)"
         case .report(let report): return "report-\(report.id.uuidString)"
-        case .deepScan: return "deep-scan"
+        case .deepScan(let url): return "deep-scan-\(url?.absoluteString ?? "picker")"
         }
     }
 }

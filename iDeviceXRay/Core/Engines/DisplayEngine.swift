@@ -94,17 +94,17 @@ struct DisplayEngine {
             confidence: .verified
         ))
 
-        // 这两项是产品宣传里最容易吹过头的，明确写清楚不可读
+        // 公开接口读不到，但诊断档案里的 IODeviceTree 有面板序列号
         fields.append(.unavailable(
             key: "display.vendor",
             title: "面板供应商",
-            reason: "iOS 不向第三方 App 暴露面板厂商，需导入诊断档案后从日志尝试推断"
+            reason: "公开接口不暴露；导入诊断档案后，可从 IODeviceTree 的面板序列号前缀识别"
         ))
 
         fields.append(.unavailable(
             key: "display.panelCode",
             title: "面板代号",
-            reason: "仅当诊断日志中包含显示组件记录时才能推断"
+            reason: "导入诊断档案后显示序列号前三位，其余位不保留"
         ))
 
         return fields
