@@ -155,7 +155,7 @@ struct LocalHistoryCard: View {
             Image(systemName: "battery.25percent")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.textTertiary)
-            Text("还没有历史。打开「充电」页并保持充电，App 会按天记录电量、温度与充入电量，不需要做任何导出。")
+            Text("还没有历史。插着电、App 在前台时（首页或充电页都行）会自动记录电量、温度与充入电量，不需要导出任何文件。")
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)

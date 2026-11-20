@@ -85,19 +85,19 @@ final class BatteryHistoryTests: XCTestCase {
         let store = BatteryHistoryStore(directory: directory)
         let base = Date()
 
-        // 2.0 A 充 60 秒 ≈ 33.3 mAh；每步 +2% 电量，共 20 步 +40%
+        // 2.0 A 充 30 秒 ≈ 16.7 mAh；每步 +1% 电量，共 20 步 +20%
         var time = base
         var level = 0.50
         for index in 0..<20 {
-            store.ingest(sample(id: index, time: time, level: level, state: .charging, current: 2.0), dt: 60)
-            time = time.addingTimeInterval(60)
-            level += 0.02
+            store.ingest(sample(id: index, time: time, level: level, state: .charging, current: 2.0), dt: 30)
+            time = time.addingTimeInterval(30)
+            level += 0.01
         }
         // 拔线结算
         store.ingest(sample(id: 99, time: time, level: level, state: .unplugged), dt: 5)
 
         let estimate = try? XCTUnwrap(store.capacityEstimate)
-        // 20 × 33.33 mAh = 666.7 mAh，除以 40% ≈ 1667 mAh
+        // 20 × 16.67 mAh = 333.3 mAh，除以 20% ≈ 1667 mAh
         XCTAssertEqual(estimate?.milliampereHours ?? 0, 1667, accuracy: 40)
         XCTAssertEqual(estimate?.sampleCount, 1)
     }
