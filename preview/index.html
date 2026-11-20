@@ -238,6 +238,56 @@
   .point p{ font-size:12.5px; line-height:1.6; color:var(--text2); margin:0; }
   .point b{ color:#fff; font-weight:600; }
 
+
+  /* ---------- 实时充电 ---------- */
+  .livecard{ padding:16px; }
+  .livehead{ display:flex; align-items:center; gap:6px; font-size:11px; }
+  .livehead b{ color:var(--success); font-weight:600; }
+  .livehead .muted-s{ color:var(--text3); font-size:10px; }
+  .livehead .grow{ flex:1; }
+  .livehead .pause{ font-size:10px; color:var(--text2); background:rgba(255,255,255,.06); padding:4px 9px; border-radius:20px; }
+  .livedot{ width:6px; height:6px; border-radius:50%; background:var(--success); position:relative; flex:0 0 auto; }
+  .livedot::after{ content:""; position:absolute; inset:-1px; border-radius:50%; border:1px solid rgba(52,211,153,.7); animation:ping 1.4s ease-out infinite; }
+  @keyframes ping{ 0%{ transform:scale(1); opacity:.9 } 100%{ transform:scale(2.8); opacity:0 } }
+
+  .bigrow{ display:flex; align-items:center; justify-content:space-between; margin-top:12px; }
+  .bigw{ font-size:34px; font-weight:700; letter-spacing:-.02em; line-height:1.05; font-variant-numeric:tabular-nums; }
+  .bigw i{ font-style:normal; font-size:13px; color:var(--text3); margin-left:4px; }
+  .capt{ font-size:11px; color:var(--text2); margin-top:4px; }
+  .batterycol{ text-align:right; }
+  .batterycol .pct{ font-size:20px; font-weight:700; }
+  .batterycol .st{ font-size:10px; color:var(--success); margin-top:2px; }
+
+  .railgrid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px; }
+  .railtile{ display:flex; align-items:baseline; gap:4px; background:rgba(255,255,255,.035); border-radius:10px; padding:8px 10px; }
+  .railtile span{ font-size:10px; color:var(--text3); }
+  .railtile b{ margin-left:auto; font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .railtile i{ font-style:normal; font-size:9px; color:var(--text3); }
+
+  .chartwrap{ margin-top:14px; }
+  .charthead{ display:flex; align-items:center; justify-content:space-between; font-size:10px; color:var(--text3); }
+  .segs{ display:flex; background:rgba(255,255,255,.06); border-radius:8px; padding:2px; gap:2px; }
+  .segs i{ font-style:normal; font-size:10px; padding:2px 9px; border-radius:6px; color:var(--text3); cursor:pointer; }
+  .segs i.on{ background:rgba(255,255,255,.14); color:#fff; }
+  #chart{ width:100%; height:96px; display:block; margin-top:8px; }
+  .chartfoot{ display:flex; gap:10px; font-size:9px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--text3); }
+
+  .session{ display:flex; gap:0; margin-top:14px; padding:10px; border-radius:12px; background:rgba(245,158,11,.07); border:1px solid rgba(245,158,11,.16); }
+  .sess{ flex:1; min-width:0; }
+  .sess b{ display:block; font-size:13px; font-variant-numeric:tabular-nums; }
+  .sess span{ font-size:9px; color:var(--text3); }
+  .sessnote{ display:flex; gap:8px; align-items:center; font-size:9px; color:var(--text3); margin-top:6px; }
+  .sessnote a{ margin-left:auto; color:var(--primary-light); cursor:pointer; }
+
+  .strip{ display:flex; align-items:center; gap:11px; margin-top:12px; padding:9px 12px; border-radius:16px; background:rgba(245,158,11,.06); border:1px solid rgba(245,158,11,.18); cursor:pointer; }
+  .strip > div:nth-child(2){ min-width:0; flex:1; }
+  .strip .ico2{ width:34px; height:34px; border-radius:50%; background:rgba(245,158,11,.14); display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+  .strip b{ font-size:12px; font-weight:600; }
+  .strip .w{ font-size:14px; font-weight:700; color:var(--warning); margin-left:4px; font-variant-numeric:tabular-nums; }
+  .strip .s{ font-size:9px; color:var(--text3); font-family:ui-monospace,Menlo,monospace; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .strip svg.spark{ margin-left:auto; opacity:.9; flex:0 0 auto; }
+  .tiny{ font-size:10px; color:var(--text3); margin-top:12px; line-height:1.7; }
+
   @media (max-width:980px){
     body{ padding:24px 14px; align-items:flex-start; }
     .stage{ flex-direction:column; gap:32px; }
@@ -305,6 +355,20 @@
             </div>
           </div>
 
+          <div class="strip" onclick="show('power')">
+            <div class="ico2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+            </div>
+            <div>
+              <div><b>充电中</b><span class="w" id="stripW">15.21 W</span></div>
+              <div class="s" id="stripS">9.00 V × 1.69 A · 62% · 32.4 °C</div>
+            </div>
+            <svg class="spark" width="56" height="28" viewBox="0 0 56 28" fill="none">
+              <path d="M0 20 L8 17 L16 19 L24 12 L32 14 L40 9 L48 11 L56 8" stroke="#F59E0B" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <svg width="8" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.36)" stroke-width="2.5" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+          </div>
+
           <div class="actions">
             <button class="btn btn-primary">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
@@ -339,6 +403,18 @@
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#34D399" stroke-width="2"><rect x="2" y="7" width="16" height="10" rx="3"/><path d="M22 11v2"/><rect x="5" y="10" width="8" height="4" rx="1" fill="#34D399" stroke="none"/></svg>
               </div>
               <div class="txt"><b>电池状态</b><span>电量 · 充电 · 健康</span></div>
+            </div>
+            <div class="tile" onclick="show('power')">
+              <div class="ico" style="background:rgba(245,158,11,.14)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+              </div>
+              <div class="txt"><b>充电与功率</b><span>实时输入 · 效率</span></div>
+            </div>
+            <div class="tile">
+              <div class="ico" style="background:rgba(248,113,113,.14)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F87171" stroke-width="2"><path d="M14 14.8V5a2 2 0 1 0-4 0v9.8a4 4 0 1 0 4 0z"/></svg>
+              </div>
+              <div class="txt"><b>温度传感器</b><span>全机测温点</span></div>
             </div>
             <div class="tile">
               <div class="ico" style="background:rgba(245,158,11,.14)">
@@ -451,6 +527,104 @@
           </p>
         </div>
 
+        <!-- ===== 实时充电页 ===== -->
+        <div class="page" data-page="power" style="display:none">
+          <div class="detail-head">
+            <div class="back" onclick="show('home')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            </div>
+            <h2>充电与功率</h2>
+          </div>
+
+          <div class="card livecard">
+            <div class="livehead">
+              <span class="livedot"></span>
+              <b>实时监控</b>
+              <span class="muted-s">每 1 秒</span>
+              <span class="grow"></span>
+              <span class="pause" onclick="toggleLive(this)">⏸ 暂停</span>
+            </div>
+
+            <div class="bigrow">
+              <div>
+                <div class="bigw"><span id="liveW">15.21</span><i>W</i></div>
+                <div class="capt">USB-C 输入功率 · 转进电池 <span id="eff">93%</span></div>
+              </div>
+              <div class="batterycol">
+                <div class="pct">62%</div>
+                <div class="st">充电中</div>
+              </div>
+            </div>
+
+            <div class="railgrid">
+              <div class="railtile"><span>输入电压</span><b>9.00</b><i>V</i></div>
+              <div class="railtile"><span>输入电流</span><b id="vIn">1.69</b><i>A</i></div>
+              <div class="railtile"><span>电池电压</span><b>4.05</b><i>V</i></div>
+              <div class="railtile"><span>充入电流</span><b>3.50</b><i>A</i></div>
+              <div class="railtile"><span>电池温度</span><b>32.4</b><i>°C</i></div>
+              <div class="railtile"><span>充电 IC</span><b id="icT">38.6</b><i>°C</i></div>
+            </div>
+
+            <div class="chartwrap">
+              <div class="charthead">
+                <span>最近 60 秒</span>
+                <span class="segs"><i class="on">功率</i><i>电流</i><i>温度</i></span>
+              </div>
+              <canvas id="chart"></canvas>
+              <div class="chartfoot">
+                <span id="stMin">最低 14.42 W</span>
+                <span id="stAvg">平均 15.20 W</span>
+                <span id="stMax">最高 15.88 W</span>
+                <span style="margin-left:auto" id="ptCount">60 点</span>
+              </div>
+            </div>
+
+            <div class="session">
+              <div class="sess"><b id="sMah">420 mAh</b><span>已充入</span></div>
+              <div class="sess"><b id="sWh">1.72 Wh</b><span>电量</span></div>
+              <div class="sess"><b id="sPeak">15.88 W</b><span>峰值</span></div>
+              <div class="sess"><b id="dur">2:14</b><span>时长</span></div>
+            </div>
+            <div class="sessnote">
+              <span>按每秒电流积分得出，仅在检测到充电时累计</span>
+              <a onclick="resetLive()">清零</a>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:12px">
+            <div class="rows">
+              <div class="row">
+                <div class="top"><span class="k">电源连接</span><span class="v">已连接 · 充电中</span></div>
+                <div class="note">IOPSGetPowerSourceDescription，插拔即时反映</div>
+              </div>
+              <div class="row">
+                <div class="top"><span class="k">适配器</span><span class="v">20W USB-C</span></div>
+                <div class="note">握手到 4 个电压档位</div>
+              </div>
+              <div class="row">
+                <div class="top"><span class="k">适配器标称</span><span class="v">20 W</span></div>
+                <div class="note">标称上限，不是实测输入</div>
+              </div>
+              <div class="row">
+                <div class="top"><span class="k">充入电池功率</span><span class="v" id="battW">14.18 W</span></div>
+                <div class="note">VP0u × IQ0B</div>
+              </div>
+              <div class="row">
+                <div class="top"><span class="k">充电效率</span><span class="v" id="eff2">93%</span></div>
+                <div class="note">入电池功率 ÷ 输入功率；差值变成热，由机身与充电 IC 散掉</div>
+              </div>
+              <div class="row">
+                <div class="top"><span class="k">功率核对</span><span class="v">与标称相符</span></div>
+                <div class="note">实测 15.2 W / 标称 20 W = 76%</div>
+              </div>
+            </div>
+          </div>
+
+          <p class="tiny">
+            数值每 1 秒刷新，离开本页、拔掉电源或 App 进入后台时自动暂停。没有传感器的通道显示「—」并给出原因，不填 0、不估算。
+          </p>
+        </div>
+
         <!-- ===== 深度检测页 ===== -->
         <div class="page" data-page="deep" style="display:none">
           <div class="detail-head">
@@ -539,11 +713,12 @@
   <!-- ============ 说明 ============ -->
   <div class="info">
     <h2>iDevice <em>X-Ray</em></h2>
-    <p>这不是设计稿，是与 SwiftUI 源码一一对应的 UI 预览。三屏分别是首页、详情页、深度检测页，可直接点击切换。</p>
+    <p>这不是设计稿，是与 SwiftUI 源码一一对应的 UI 预览。四屏分别是首页、详情页、实时充电页、深度检测页，可直接点击切换；实时充电页的曲线与读数是按真实采样逻辑演算的动效。</p>
 
     <div class="switcher">
       <div class="sw active" data-target="home" onclick="show('home')">首页</div>
       <div class="sw" data-target="detail" onclick="show('detail')">设备详情</div>
+      <div class="sw" data-target="power" onclick="show('power')">实时充电</div>
       <div class="sw" data-target="deep" onclick="show('deep')">深度检测</div>
     </div>
 
@@ -551,15 +726,17 @@
       <div class="point"><div class="dot"></div><p><b>没有假数据。</b>「面板供应商」「CPU 温度」显示为「—」并给出原因，而不是编一个看起来很专业的数字。</p></div>
       <div class="point"><div class="dot"></div><p><b>每个数值都能溯源。</b>点击任意一行，展开这条数据的来源与可信度说明。</p></div>
       <div class="point"><div class="dot"></div><p><b>深度检测是唯一拿到电池循环次数的合规路径。</b>解析用户导入的 sysdiagnose，全程本地、不上传。</p></div>
+      <div class="point"><div class="dot"></div><p><b>充电数据是实时的。</b>功率、电压、电流、温度每秒刷新，60 秒曲线断开表示该通道没有读数，而不是画一条 0 W 的水平线。</p></div>
       <div class="point"><div class="dot"></div><p><b>适配 iPhone 与 iPad。</b>网格自适应，iPad 横屏自动多列，内容区最大宽度 900pt 居中。</p></div>
     </div>
 
     <div style="margin-top:26px;padding:16px 18px;border:1px solid rgba(255,255,255,.08);border-radius:16px;background:rgba(255,255,255,.03)">
-      <div style="font-size:11px;letter-spacing:.08em;color:rgba(255,255,255,.36);margin-bottom:10px">已实现 · 3919 行 Swift</div>
+      <div style="font-size:11px;letter-spacing:.08em;color:rgba(255,255,255,.36);margin-bottom:10px">已实现 · 38 个 Swift 文件 · 6553 行</div>
       <div style="display:flex;flex-direction:column;gap:7px;font-size:12px;color:rgba(255,255,255,.7)">
         <div style="display:flex;justify-content:space-between"><span>标准检测 · 五个采集引擎</span><span style="color:#34D399">完成</span></div>
         <div style="display:flex;justify-content:space-between"><span>报告导出 · PDF / JSON / 长图</span><span style="color:#34D399">完成</span></div>
         <div style="display:flex;justify-content:space-between"><span>Sysdiagnose 流式解析</span><span style="color:#34D399">完成</span></div>
+        <div style="display:flex;justify-content:space-between"><span>充电链路实时监控</span><span style="color:#34D399">完成</span></div>
         <div style="display:flex;justify-content:space-between"><span>验机规则引擎</span><span style="color:rgba(255,255,255,.35)">规划中</span></div>
       </div>
     </div>
@@ -581,10 +758,143 @@
     });
     const content = document.querySelector('.content');
     if(content) content.scrollTop = 0;
+    if (name === 'power') startLive(); else stopLive();
+  }
+
+  // ---------- 实时充电页的示意数据 ----------
+  // 与 App 里的采样逻辑同构：每秒一个点，60 点窗口，最近一点带光点。
+  const canvas = document.getElementById('chart');
+  const ctx = canvas ? canvas.getContext('2d') : null;
+  let series = [];
+  let liveTimer = null;
+  let elapsed = 134;
+
+  function seedSeries(){
+    series = [];
+    for (let i = 0; i < 60; i++) {
+      series.push(15.2 + Math.sin(i / 4.5) * 0.45 + (Math.random() - 0.5) * 0.22);
+    }
+  }
+
+  function drawChart(){
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 300;
+    const h = canvas.clientHeight || 96;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.strokeStyle = 'rgba(255,255,255,.05)';
+    ctx.lineWidth = 1;
+    [0.15, 0.5, 0.85].forEach(f => {
+      ctx.beginPath(); ctx.moveTo(0, h * f); ctx.lineTo(w, h * f); ctx.stroke();
+    });
+
+    const lo = Math.min(...series);
+    const hi = Math.max(...series);
+    const lower = lo - 0.4;
+    const upper = hi + 0.4;
+    const px = i => (i / (series.length - 1)) * w;
+    const py = v => h - ((v - lower) / (upper - lower)) * h;
+
+    ctx.beginPath();
+    series.forEach((v, i) => i ? ctx.lineTo(px(i), py(v)) : ctx.moveTo(px(i), py(v)));
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(245,158,11,.30)');
+    grad.addColorStop(1, 'rgba(245,158,11,.02)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.beginPath();
+    series.forEach((v, i) => i ? ctx.lineTo(px(i), py(v)) : ctx.moveTo(px(i), py(v)));
+    ctx.strokeStyle = '#F59E0B';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    const lx = px(series.length - 1);
+    const ly = py(series[series.length - 1]);
+    ctx.beginPath(); ctx.arc(lx, ly, 5, 0, Math.PI * 2); ctx.fillStyle = 'rgba(245,158,11,.22)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(lx, ly, 2.6, 0, Math.PI * 2); ctx.fillStyle = '#F59E0B'; ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,255,255,.36)';
+    ctx.font = '8px ui-monospace, Menlo, monospace';
+    ctx.fillText(upper.toFixed(2) + ' W', 2, 9);
+    ctx.fillText(lower.toFixed(2) + ' W', 2, h - 2);
+  }
+
+  function fmtDur(sec){
+    const m = Math.floor(sec / 60);
+    const r = sec % 60;
+    return m + ':' + String(r).padStart(2, '0');
+  }
+
+  function setText(id, value){
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  function tick(){
+    const next = Math.max(13.8, Math.min(16.1, 15.2 + (Math.random() - 0.5) * 0.8 + Math.sin(elapsed / 9) * 0.2));
+    series.push(next);
+    series.shift();
+    elapsed += 1;
+    drawChart();
+
+    setText('liveW', next.toFixed(2));
+    setText('vIn', (next / 9).toFixed(2));
+    setText('battW', (next * 0.932).toFixed(2) + ' W');
+    setText('stripW', next.toFixed(2) + ' W');
+    setText('dur', fmtDur(elapsed));
+    setText('icT', (38.6 + Math.sin(elapsed / 12) * 0.7).toFixed(1));
+    setText('stripS', `9.00 V × ${(next / 9).toFixed(2)} A · 62% · 32.4 °C`);
+
+    const lo = Math.min(...series), hi = Math.max(...series);
+    const avg = series.reduce((a, b) => a + b, 0) / series.length;
+    setText('stMin', '最低 ' + lo.toFixed(2) + ' W');
+    setText('stAvg', '平均 ' + avg.toFixed(2) + ' W');
+    setText('stMax', '最高 ' + hi.toFixed(2) + ' W');
+    setText('ptCount', series.length + ' 点');
+  }
+
+  function startLive(){
+    if (!series.length) seedSeries();
+    drawChart();
+    if (liveTimer) return;
+    liveTimer = setInterval(tick, 1000);
+    const btn = document.querySelector('.livehead .pause');
+    if (btn) btn.textContent = '⏸ 暂停';
+  }
+
+  function stopLive(){
+    if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+  }
+
+  function toggleLive(el){
+    if (liveTimer) {
+      stopLive();
+      el.textContent = '▶ 继续';
+    } else {
+      startLive();
+      el.textContent = '⏸ 暂停';
+    }
+  }
+
+  function resetLive(){
+    elapsed = 0;
+    seedSeries();
+    drawChart();
+    setText('dur', '0:00');
   }
 
   const initial = location.hash.replace('#', '');
-  if (['home', 'detail', 'deep'].indexOf(initial) >= 0) show(initial);
+  if (['home', 'detail', 'power', 'deep'].indexOf(initial) >= 0) show(initial);
 </script>
 </body>
 </html>

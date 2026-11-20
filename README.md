@@ -93,7 +93,7 @@ iDeviceXRay/
 ├─ Core/
 │  ├─ Models/          ReportField / ReportSection / ScanReport
 │  ├─ Engines/         采集引擎（设备 / 屏幕 / 电池 / 存储 / 系统 / 电源传感器）
-│  ├─ Sensors/         私有接口：HID 传感器、IOKit 电源、合并与过滤
+│  ├─ Sensors/         私有接口：HID 传感器、IOKit 电源、合并过滤、实时采样（ChargeMonitor）
 │  ├─ Fusion/          深度数据融合、扫描调度
 │  ├─ Catalog/         机型规格库 + devices.json
 │  ├─ Storage/         报告本地存档
@@ -102,7 +102,7 @@ iDeviceXRay/
 │  ├─ Importer/        流式 gunzip、tar 扫描器、扫描服务
 │  └─ Parsers/         电池 / 显示字段抽取
 ├─ Report/             PDF / JSON / 分享长图导出
-├─ Features/           各页面
+├─ Features/           各页面（Detail/ChargeLiveView 为实时充电卡与曲线）
 └─ DesignSystem/       主题与组件
 ```
 
