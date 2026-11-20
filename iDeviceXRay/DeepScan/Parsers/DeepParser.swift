@@ -19,7 +19,10 @@ enum DeepParser {
         var outcome = Outcome()
 
         for file in files {
-            let slice = file.data.prefix(2_000_000)
+            // device tree 通常有数 MB，面板节点不一定落在前 2MB 里，这类文件放宽上限
+            let isDeviceTree = file.name.lowercased().contains("iodevicetree")
+            let limit = isDeviceTree ? 8_000_000 : 2_000_000
+            let slice = file.data.prefix(limit)
             guard !slice.isEmpty else { continue }
             let text = String(decoding: slice, as: UTF8.self)
 

@@ -104,7 +104,7 @@ struct DeepScanView: View {
                         .font(.system(size: 10))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .foregroundStyle(Theme.cyan)
+                .foregroundStyle(Theme.textTertiary)
                 .padding(.top, 2)
 
                 HStack(alignment: .top, spacing: 6) {
