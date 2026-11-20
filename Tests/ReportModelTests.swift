@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import iDeviceXRay
 
@@ -101,6 +102,56 @@ final class TarScannerTests: XCTestCase {
         let decoder = try? GzipStreamDecoder()
         XCTAssertNotNil(decoder)
         XCTAssertThrowsError(try decoder?.write(Data(repeating: 0x00, count: 32)))
+    }
+
+    /// 真机包里有大量 PaxHeader / ._ 条目，命名同样带 battery/powerlog，
+    /// 但内容是打包元数据。把它们算进命中列表只会制造噪音。
+    func testIgnoresPaxHeaderAndAppleDouble() {
+        let scanner = TarScanner(keywords: ["battery"])
+        scanner.feed(makeEntry(name: "logs/BatteryUIPlist/PaxHeader/BatteryUI.plist", content: "x"))
+        scanner.feed(makeEntry(name: "logs/BatteryUIPlist/._BatteryUI.plist", content: "x"))
+        scanner.feed(makeEntry(name: "logs/BatteryUIPlist/BatteryUI.plist", content: "y"))
+        scanner.finish()
+
+        XCTAssertEqual(scanner.matchedFiles, ["logs/BatteryUIPlist/BatteryUI.plist"])
+    }
+
+    /// iOS 26/27 主库改名成 powerlog_<date>_<hex>.PLSQL，
+    /// 只认 CurrentPowerlog.PLSQL 会整包导进来也读不到循环次数。
+    func testSpillPlanAcceptsNewPowerlogName() {
+        let name = "sysdiagnose_2026.11.20/logs/powerlogs/powerlog_2026-11-20_09-08_908E6B0B.PLSQL"
+        XCTAssertTrue(DeepScanService.shouldSpillPowerlog(name: name, size: 180_000_000))
+        XCTAssertTrue(DeepScanService.shouldSpillPowerlog(
+            name: "logs/powerlogs/CurrentPowerlog.PLSQL", size: 120_000_000
+        ))
+
+        // PaxHeader 里的同名条目只有几十字节，不能当主库落盘
+        XCTAssertFalse(DeepScanService.shouldSpillPowerlog(
+            name: "logs/powerlogs/PaxHeader/powerlog_2026-11-20_09-08_908E6B0B.PLSQL", size: 30
+        ))
+        // 扩展电源日志是另一种库，先交给别的路径
+        XCTAssertFalse(DeepScanService.shouldSpillPowerlog(
+            name: "logs/powerlogs/log_2026-11-20_09-08_0C6D3D19.EPSQL", size: 180_000_000
+        ))
+    }
+
+    /// BatteryUIPlist 是二进制 plist，按 UTF-8 解码是乱码，正则永远匹配不上。
+    func testParsesBinaryPlistBatteryFields() throws {
+        let dict: [String: Any] = [
+            "CycleCount": 258,
+            "DesignCapacity": 3274,
+            "AppleRawMaxCapacity": 3208
+        ]
+        let data = try PropertyListSerialization.data(
+            fromPropertyList: dict,
+            format: .binary,
+            options: 0
+        )
+        XCTAssertTrue(data.starts(with: Data("bplist00".utf8)))
+
+        let outcome = DeepParser.parse(files: [("logs/BatteryUIPlist/BatteryUI.plist", data)])
+        XCTAssertEqual(outcome.values["battery.cycleCount"], "258 次")
+        XCTAssertEqual(outcome.values["battery.health"], "98%")
     }
 
     // MARK: - Helpers

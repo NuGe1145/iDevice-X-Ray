@@ -192,6 +192,14 @@ final class TarScanner {
 
     private func isInteresting(_ name: String) -> Bool {
         let lower = name.lowercased()
+
+        // PaxHeader 与 AppleDouble（同名 ._ 前缀）都是打包时产生的元数据，
+        // 真实的 sysdiagnose 里每个文件都跟着一份，命中关键词却没有任何内容，
+        // 只会把 matchedFiles 和解析用时撑大。
+        if lower.contains("/paxheader/") { return false }
+        let base = (lower as NSString).lastPathComponent
+        if base.hasPrefix("._") { return false }
+
         return keywords.contains { lower.contains($0) }
     }
 

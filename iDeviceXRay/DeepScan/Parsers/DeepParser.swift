@@ -19,18 +19,78 @@ enum DeepParser {
         var outcome = Outcome()
 
         for file in files {
-            // device tree 通常有数 MB，面板节点不一定落在前 2MB 里，这类文件放宽上限
-            let isDeviceTree = file.name.lowercased().contains("iodevicetree")
-            let limit = isDeviceTree ? 8_000_000 : 2_000_000
-            let slice = file.data.prefix(limit)
-            guard !slice.isEmpty else { continue }
-            let text = String(decoding: slice, as: UTF8.self)
+            guard let text = text(from: file.name, data: file.data) else { continue }
 
+            let before = outcome.values.count
             BatteryLogParser.parse(text: text, fileName: file.name, into: &outcome)
             DisplayLogParser.parse(text: text, fileName: file.name, into: &outcome)
+
+            // 按文件判断有没有产出，而不是看全局 values 是否为空 ——
+            // 否则第一个文件填过值之后，后面所有文件的失败都被悄悄吞掉。
+            if outcome.values.count == before {
+                outcome.notes.append("\(file.name)：未匹配到可用字段")
+            }
         }
 
         return outcome
+    }
+
+    /// 二进制 plist 按 UTF-8 解码只会得到乱码，正则永远匹配不上。
+    /// BatteryUIPlist 目录下正是 bplist，先摊平成 `key = value` 再走同一套规则。
+    private static func text(from name: String, data: Data) -> String? {
+        // device tree 通常有数 MB，面板节点不一定落在前 2MB 里，这类文件放宽上限
+        let isDeviceTree = name.lowercased().contains("iodevicetree")
+        let limit = isDeviceTree ? 8_000_000 : 2_000_000
+        let slice = data.prefix(limit)
+        guard !slice.isEmpty else { return nil }
+
+        if slice.starts(with: Data("bplist00".utf8)) {
+            return flattenPlist(slice)
+        }
+        return String(decoding: slice, as: UTF8.self)
+    }
+
+    private static func flattenPlist(_ data: Data) -> String? {
+        guard let object = try? PropertyListSerialization.propertyList(
+            from: data,
+            options: [],
+            format: nil
+        ) else { return nil }
+
+        var lines: [String] = []
+        walk(object, into: &lines, depth: 0)
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    private static func walk(_ value: Any, into lines: inout [String], depth: Int) {
+        guard depth < 12 else { return }
+
+        switch value {
+        case let dictionary as [String: Any]:
+            for (key, child) in dictionary {
+                if let scalar = scalarText(child) {
+                    lines.append("\(key) = \(scalar)")
+                } else {
+                    lines.append("\(key):")
+                    walk(child, into: &lines, depth: depth + 1)
+                }
+            }
+        case let array as [Any]:
+            for child in array {
+                walk(child, into: &lines, depth: depth + 1)
+            }
+        default:
+            break
+        }
+    }
+
+    private static func scalarText(_ value: Any) -> String? {
+        switch value {
+        case let number as NSNumber: return number.stringValue
+        case let string as String: return string
+        case let date as Date: return ISO8601DateFormatter().string(from: date)
+        default: return nil
+        }
     }
 }
 
@@ -97,10 +157,6 @@ enum BatteryLogParser {
             if volts > 2.0, volts < 6.0 {
                 outcome.values["battery.voltage"] = String(format: "%.2f V", volts)
             }
-        }
-
-        if outcome.values.isEmpty {
-            outcome.notes.append("\(fileName)：未匹配到电池字段")
         }
     }
 

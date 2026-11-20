@@ -123,10 +123,17 @@ final class DeepScanService: @unchecked Sendable {
         defer { try? handle.close() }
 
         let scanner = TarScanner(keywords: DeepParser.interestingKeywords)
-        scanner.spillPlan = { name, _ in
-            let lower = name.lowercased()
-            guard lower.hasSuffix("currentpowerlog.plsql") else { return nil }
-            return spillDirectory.appendingPathComponent("CurrentPowerlog.PLSQL")
+        // iOS 26/27 的包主库不再叫 CurrentPowerlog.PLSQL，而是
+        // powerlog_2026-11-20_09-08_908E6B0B.PLSQL；只认旧名字的话整包导进来
+        // 也拿不到循环次数。这里按后缀收，PaxHeader 里的同名元数据体积很小，
+        // 用 1MB 门槛把它们排除。
+        var spillIndex = 0
+        scanner.spillPlan = { name, entrySize in
+            guard Self.shouldSpillPowerlog(name: name, size: entrySize) else { return nil }
+            guard spillIndex < 3 else { return nil }
+            spillIndex += 1
+            let tag = name.lowercased().contains("powerlog") ? "main" : "aux"
+            return spillDirectory.appendingPathComponent("\(tag)-\(spillIndex).PLSQL")
         }
         let decoder = try GzipStreamDecoder()
 
@@ -157,10 +164,18 @@ final class DeepScanService: @unchecked Sendable {
         var powerlogSummary: PowerlogSummary?
         if !scanner.spilledFiles.isEmpty {
             onProgress(0.94, "读取 Powerlog 电池历史…")
-            for item in scanner.spilledFiles {
+            // 主库（powerlog_*.PLSQL）排在前面；几个库都读一遍，取字段最全的那份
+            let ordered = scanner.spilledFiles.sorted { lhs, rhs in
+                let l = lhs.url.lastPathComponent.hasPrefix("main")
+                let r = rhs.url.lastPathComponent.hasPrefix("main")
+                return l && !r
+            }
+            for item in ordered {
                 let read = PowerlogReader.read(url: item.url)
                 if let summary = read.summary {
-                    powerlogSummary = summary
+                    let better = powerlogSummary == nil
+                        || summary.extraction.count > (powerlogSummary?.extraction.count ?? 0)
+                    if better { powerlogSummary = summary }
                     for (key, value) in summary.extraction {
                         outcome.values[key] = value
                     }
@@ -171,7 +186,14 @@ final class DeepScanService: @unchecked Sendable {
 
         onProgress(1.0, "解析完成")
 
-        var warnings = outcome.notes
+        // 「未匹配到电池字段」每个文件一条，十几条会把真正重要的提示挤掉。
+        // 这类归并成一句，其余保持原样。
+        let unmatched = outcome.notes.filter { $0.contains("未匹配到") }
+        var warnings = outcome.notes.filter { !$0.contains("未匹配到") }
+        if !unmatched.isEmpty {
+            warnings.append("\(unmatched.count) 个命中文件里没有可用字段，已跳过")
+        }
+
         if scanner.matchedFiles.isEmpty {
             warnings.append("未在归档中找到电池或显示相关日志，请确认导入的是 sysdiagnose 压缩包")
         }
@@ -243,6 +265,17 @@ final class DeepScanService: @unchecked Sendable {
 
     static func isSQLite(at url: URL) -> Bool {
         kind(at: url) == .sqlite
+    }
+
+    /// 哪些条目要落盘交给 SQLite 读。
+    ///
+    /// iOS 26/27 的包主库是 `powerlog_2026-11-20_09-08_<hex>.PLSQL`，
+    /// 只有老系统才叫 `CurrentPowerlog.PLSQL` —— 早前只认旧名字，整包导进来
+    /// 却拿不到循环次数，就是这么来的。PaxHeader 里的同名条目只有几十字节，
+    /// 1MB 门槛能顺手把它们排除。
+    static func shouldSpillPowerlog(name: String, size: Int) -> Bool {
+        let lower = name.lowercased()
+        return lower.hasSuffix(".plsql") && size >= 1_048_576
     }
 
     private func runPowerlogOnly(
