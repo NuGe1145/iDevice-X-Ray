@@ -48,6 +48,10 @@ struct SectionDetailView: View {
                     }
                 }
 
+                if section.key == "battery" {
+                    LocalHistoryCard()
+                }
+
                 hintCard
             }
             .navigationTitle(section.title)

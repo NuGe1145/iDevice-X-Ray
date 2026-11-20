@@ -209,6 +209,7 @@ final class ChargeMonitor {
     func pause() {
         isPaused = true
         stopTask()
+        BatteryHistoryStore.shared.flush()
     }
 
     func resume() {
@@ -224,6 +225,7 @@ final class ChargeMonitor {
             launchIfNeeded()
         } else {
             stopTask()
+            BatteryHistoryStore.shared.flush()
         }
     }
 
@@ -348,5 +350,8 @@ final class ChargeMonitor {
             samples.removeFirst(samples.count - Self.historyLimit)
         }
         lastUpdate = now
+
+        // 长期历史：只存每日聚合，不占内存，也不依赖任何导入文件。
+        BatteryHistoryStore.shared.ingest(sample, dt: dt)
     }
 }

@@ -1,8 +1,11 @@
 import Foundation
 import UIKit
 
-/// 电池。电量与充电状态可实时读取；循环次数、健康度、电压、温度
-/// 没有任何公开 API，占位为「不可读取」，由深度扫描融合层填充。
+/// 电池。电量与充电状态来自公开 API；电压、温度来自私有 SMC 通道；
+/// 容量与健康度由本机充电片段积分估算；循环次数只能靠导入诊断档案。
+///
+/// 这里的取舍：宁可显示「—」并说明原因，也不把机型规格当成实测值。
+/// 每一项都带来源与可信度，用户能判断该不该信。
 @MainActor
 struct BatteryEngine {
 
@@ -12,6 +15,8 @@ struct BatteryEngine {
             device.isBatteryMonitoringEnabled = true
         }
 
+        let history = BatteryHistoryStore.shared
+        let snapshot = ChargeMonitor.shared.snapshot
         var fields: [ReportField] = []
 
         let level = device.batteryLevel
@@ -40,34 +45,85 @@ struct BatteryEngine {
             confidence: .verified
         ))
 
-        // 以下四项为深度指标占位
-        fields.append(.unavailable(
-            key: "battery.cycleCount",
-            title: "循环次数",
-            value: "",
-            reason: "iOS 无公开 API，需导入 Sysdiagnose 后从电池日志解析"
-        ))
+        // MARK: 实时电压与温度（私有 SMC 通道，无需任何导入）
 
-        fields.append(.unavailable(
-            key: "battery.health",
-            title: "电池健康度",
-            value: "",
-            reason: "iOS 无公开 API，可在「设置 › 电池 › 电池健康」查看，或导入诊断档案"
-        ))
+        if let reading = snapshot.voltage("VP0u") ?? snapshot.voltage("VQ0l"),
+           reading.value.isFinite, (2.5...5.5).contains(reading.value) {
+            fields.append(ReportField(
+                key: "battery.voltage",
+                title: "电池电压",
+                value: String(format: "%.2f", reading.value),
+                unit: "V",
+                source: .privateAPI,
+                confidence: .high,
+                note: "SMC 通道 \(reading.key)，随采样实时更新"
+            ))
+        } else {
+            fields.append(.unavailable(
+                key: "battery.voltage",
+                title: "电池电压",
+                reason: "采样循环尚未运行；打开任意实时页面后即可读取，或导入诊断档案"
+            ))
+        }
 
-        fields.append(.unavailable(
-            key: "battery.voltage",
-            title: "电池电压",
-            value: "",
-            reason: "需导入诊断档案解析 AppleSmartBattery 记录"
-        ))
+        if let reading = snapshot.hottest(in: [.battery]),
+           reading.value.isFinite, (-40...150).contains(reading.value) {
+            fields.append(ReportField(
+                key: "battery.temperature",
+                title: "电池温度",
+                value: String(format: "%.1f", reading.value),
+                unit: "°C",
+                source: .privateAPI,
+                confidence: .high,
+                note: "来自 \(reading.key) 传感器，随采样实时更新"
+            ))
+        } else {
+            fields.append(.unavailable(
+                key: "battery.temperature",
+                title: "电池温度",
+                reason: "未发现可用的电池温度通道；打开充电页可看到各测点的实时值"
+            ))
+        }
 
-        fields.append(.unavailable(
-            key: "battery.temperature",
-            title: "电池温度",
-            value: "",
-            reason: "需导入诊断档案解析，公开 API 不可得"
-        ))
+        // MARK: 容量与健康度（本机积分估算）
+
+        if let estimate = history.capacityEstimate {
+            fields.append(ReportField(
+                key: "battery.maxCapacity",
+                title: "实测容量（估算）",
+                value: "\(Int(estimate.milliampereHours.rounded()))",
+                unit: "mAh",
+                source: .localHistory,
+                confidence: .inferred,
+                note: "由 \(estimate.sampleCount) 次充电片段积分取中位数，误差约 ±5%"
+            ))
+        } else {
+            fields.append(.unavailable(
+                key: "battery.maxCapacity",
+                title: "实测容量（估算）",
+                value: "",
+                reason: "需要一次连续 20% 以上的充电；也可导入诊断档案直接读原始记录"
+            ))
+        }
+
+        if let percent = history.healthPercent(designMah: spec?.batteryDesignMah) {
+            fields.append(ReportField(
+                key: "battery.health",
+                title: "电池健康度",
+                value: String(format: "%.0f", percent),
+                unit: "%",
+                source: .localHistory,
+                confidence: .inferred,
+                note: "按本机充电积分估算，非系统读数；系统值在「设置 › 电池 › 电池健康」"
+            ))
+        } else {
+            fields.append(.unavailable(
+                key: "battery.health",
+                title: "电池健康度",
+                value: "",
+                reason: "系统未开放此接口；本机估算需要一次完整些的充电，或导入诊断档案"
+            ))
+        }
 
         if let capacity = spec?.batteryDesignMah {
             fields.append(ReportField(
@@ -89,18 +145,30 @@ struct BatteryEngine {
         }
 
         fields.append(.unavailable(
-            key: "battery.maxCapacity",
-            title: "实际最大容量",
+            key: "battery.cycleCount",
+            title: "循环次数",
             value: "",
-            reason: "需导入含 powerlog 的诊断档案，取电池表里的最大容量记录"
+            reason: "iOS 不向第三方 App 暴露循环次数（设置里也不显示）；只有 Powerlog 有原始计数"
         ))
 
-        fields.append(.unavailable(
-            key: "battery.historySpan",
-            title: "历史记录跨度",
-            value: "",
-            reason: "需导入含 powerlog 的诊断档案，按电池记录的首末时间计算"
-        ))
+        if let first = history.firstRecordDate {
+            fields.append(ReportField(
+                key: "battery.historySpan",
+                title: "本机记录",
+                value: "\(max(1, history.recordedDayCount))",
+                unit: "天",
+                source: .localHistory,
+                confidence: .high,
+                note: "从 \(first.formatted(date: .numeric, time: .omitted)) 开始，只覆盖安装之后的时间"
+            ))
+        } else {
+            fields.append(.unavailable(
+                key: "battery.historySpan",
+                title: "本机记录",
+                value: "",
+                reason: "还没有历史数据；打开充电页采样一次即开始记录"
+            ))
+        }
 
         return fields
     }
