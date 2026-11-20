@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct RootTabView: View {
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
         TabView {
             HomeView()
@@ -19,6 +21,10 @@ struct RootTabView: View {
                 }
         }
         .tint(Theme.primaryLight)
+        .onChange(of: scenePhase) { _, phase in
+            // 进后台就挂起采样：HID 在后台本来也读不到，留着只是耗电
+            ChargeMonitor.shared.setForeground(phase == .active)
+        }
     }
 }
 

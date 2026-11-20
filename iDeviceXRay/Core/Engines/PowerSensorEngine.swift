@@ -13,6 +13,17 @@ struct PowerSensorEngine {
         ]
     }
 
+    /// 用实时快照重算分区。充电、温度、电池这三页挂在监控循环上，
+    /// 每次采样都走这里重建字段，界面上的数字才会真的每秒变。
+    func liveSection(for base: ReportSection, from snapshot: EnergySnapshot) -> ReportSection {
+        switch base.key {
+        case "power": return powerSection(snapshot)
+        case "thermal": return thermalSection(snapshot)
+        case "battery": return batterySection(base, snapshot: snapshot)
+        default: return base
+        }
+    }
+
     /// 把私有接口拿到的值回填到原有分区，避免「电池状态」里写着不可读、
     /// 隔壁「充电与功率」却摆着同一个数。只填原本读不到（< .verified）的字段。
     func backfill(_ sections: [ReportSection], from snapshot: EnergySnapshot) -> [ReportSection] {
@@ -270,6 +281,132 @@ struct PowerSensorEngine {
         }
 
         return ReportSection(key: "power", title: "充电与功率", symbol: "bolt.fill", accentHex: 0xFBBF24, fields: fields)
+    }
+
+    // MARK: - 电池（实时回填）
+
+    /// 电池页里的电量、状态、电压、温度本来就是实时量，只是扫描时读了一次。
+    /// 监视充电时顺手把它们换成当前值，并补上电流与功率两行。
+    private func batterySection(_ base: ReportSection, snapshot: EnergySnapshot) -> ReportSection {
+        guard snapshot.batteryLevel != nil || snapshot.iokitAvailable || snapshot.hidAvailable else {
+            return base
+        }
+
+        let power = snapshot.power
+        var replacements: [String: ReportField] = [:]
+
+        if let level = snapshot.batteryLevel {
+            replacements["battery.level"] = ReportField(
+                key: "battery.level",
+                title: "当前电量",
+                value: number(level * 100, digits: 0),
+                unit: "%",
+                source: .live,
+                confidence: .verified,
+                note: "UIDevice 实时上报，每次采样刷新"
+            )
+        }
+
+        let stateText: String
+        if power.charging {
+            stateText = "充电中"
+        } else if power.fullCharge {
+            stateText = "已充满"
+        } else if power.externalConnected {
+            stateText = "已连接电源"
+        } else if snapshot.iokitAvailable {
+            stateText = "使用电池"
+        } else {
+            stateText = "未知"
+        }
+        replacements["battery.state"] = ReportField(
+            key: "battery.state",
+            title: "充电状态",
+            value: stateText,
+            source: .live,
+            confidence: .verified,
+            note: "系统电源状态实时读取"
+        )
+
+        let voltage = snapshot.voltage("VP0u") ?? snapshot.voltage("VQ0l")
+        if let voltage {
+            replacements["battery.voltage"] = ReportField(
+                key: "battery.voltage",
+                title: "电池电压",
+                value: number(voltage.value, digits: 2),
+                unit: "V",
+                source: .privateAPI,
+                confidence: .verified,
+                note: "SMC \(voltage.key) · \(voltage.name)"
+            )
+        }
+
+        if let battery = snapshot.hottest(in: [.battery]) {
+            replacements["battery.temperature"] = ReportField(
+                key: "battery.temperature",
+                title: "电池温度",
+                value: number(battery.value, digits: 1),
+                unit: "°C",
+                source: .privateAPI,
+                confidence: .verified,
+                note: "SMC \(battery.key) · \(battery.name)"
+            )
+        }
+
+        var extras: [ReportField] = []
+        if let current = snapshot.current("IQ0B") ?? snapshot.current("IQ0l") {
+            extras.append(ReportField(
+                key: "battery.current",
+                title: current.value >= 0 ? "充入电流" : "放电电流",
+                value: number(current.value, digits: 2),
+                unit: "A",
+                source: .privateAPI,
+                confidence: .verified,
+                note: "SMC \(current.key) · 有符号，正为充入电池"
+            ))
+            if let voltage {
+                extras.append(ReportField(
+                    key: "battery.power",
+                    title: "实时功率",
+                    value: number(voltage.value * current.value, digits: 2),
+                    unit: "W",
+                    source: .privateAPI,
+                    confidence: .verified,
+                    note: "电池端 \(number(voltage.value, digits: 2)) V × \(number(current.value, digits: 2)) A"
+                ))
+            }
+        }
+
+        var fields: [ReportField] = []
+        for field in base.fields {
+            if let hit = replacements[field.key] {
+                fields.append(hit)
+                if field.key == "battery.voltage" {
+                    fields.append(contentsOf: extras)
+                    extras.removeAll()
+                }
+            } else if field.key == "battery.current" || field.key == "battery.power" {
+                continue
+            } else {
+                fields.append(field)
+            }
+        }
+
+        if !extras.isEmpty {
+            if let index = fields.firstIndex(where: { $0.key == "battery.level" }) {
+                fields.insert(contentsOf: extras, at: index + 1)
+            } else {
+                fields.append(contentsOf: extras)
+            }
+        }
+
+        return ReportSection(
+            key: base.key,
+            title: base.title,
+            symbol: base.symbol,
+            accentHex: base.accentHex,
+            fields: fields
+        )
     }
 
     // MARK: - 温度矩阵

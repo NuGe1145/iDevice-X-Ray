@@ -170,6 +170,8 @@ struct EnergySnapshot: Sendable {
     var currents: [SensorReading] = []
     var voltages: [SensorReading] = []
     var power = Power()
+    /// 0…1，由主线程读 UIDevice 后回填；传感器 actor 不碰 UIKit
+    var batteryLevel: Double?
     var serviceCount = 0
     var droppedValues = 0
     var hidAvailable = false

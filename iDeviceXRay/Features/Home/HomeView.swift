@@ -1,5 +1,7 @@
 import SwiftUI
+import UIKit
 
+@MainActor
 struct HomeView: View {
     @State private var store = ReportStore.shared
     @State private var scanner = ScanCoordinator()
@@ -7,13 +9,21 @@ struct HomeView: View {
     @State private var latest: ScanReport?
     @State private var sheet: HomeSheet?
     @State private var didAutoScan = false
+    @State private var energy = ChargeMonitor.shared
+    @State private var isPlugged = false
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.scenePhase) private var scenePhase
+
+    private let chargeToken = "home"
 
     var body: some View {
         NavigationStack {
             PageContainer {
                 header
                 statusCard
+                if isPlugged, energy.latest != nil {
+                    ChargeLiveStrip(monitor: energy) { openPower() }
+                }
                 modeRow
                 quickAccess
                 legendCard
@@ -21,9 +31,20 @@ struct HomeView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .task {
+                UIDevice.current.isBatteryMonitoringEnabled = true
+                syncChargingMonitor()
                 guard !didAutoScan else { return }
                 didAutoScan = true
                 await scan(deep: nil, save: false)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryStateDidChangeNotification)) { _ in
+                syncChargingMonitor()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                energy.setForeground(phase == .active)
+            }
+            .onDisappear {
+                energy.end(chargeToken)
             }
             .sheet(item: $sheet) { item in
                 sheetContent(item)
@@ -32,6 +53,24 @@ struct HomeView: View {
             }
         }
     }
+
+    /// 插上电才起监控循环，拔掉就停：首页不需要每秒读一次 HID，
+    /// 但插拔事件由系统通知即时触发，不会漏掉。
+    private func syncChargingMonitor() {
+        let state = UIDevice.current.batteryState
+        isPlugged = state == .charging || state == .full
+        if state == .charging || state == .full || state == .unknown {
+            energy.begin(chargeToken)
+        } else {
+            energy.end(chargeToken)
+        }
+    }
+
+    private func openPower() {
+        guard let latest, let section = latest.section("power") else { return }
+        sheet = .section(section)
+    }
+
 
     // MARK: - 头部
 

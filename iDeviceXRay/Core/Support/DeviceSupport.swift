@@ -89,6 +89,13 @@ enum Format {
         return formatter.string(from: date)
     }
 
+    static func clock(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
+    }
+
     static func percent(_ value: Double) -> String {
         String(format: "%.0f", value * 100)
     }

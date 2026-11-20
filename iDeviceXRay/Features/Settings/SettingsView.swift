@@ -1,7 +1,9 @@
 import SwiftUI
 
+@MainActor
 struct SettingsView: View {
     @State private var store = ReportStore.shared
+    @State private var energy = ChargeMonitor.shared
     @State private var showClearConfirm = false
 
     private var appVersion: String {
@@ -15,6 +17,7 @@ struct SettingsView: View {
             PageContainer {
                 aboutCard
                 capabilityCard
+                liveCard
                 privacyCard
                 dataCard
                 openSourceCard
@@ -62,6 +65,35 @@ struct SettingsView: View {
                 privacyItem("仅限真机", "模拟器没有传感器服务，会显示为不可用", Theme.warning)
                 privacyItem("无需额外权限", "不需要描述文件或越狱，安装后直接可用", Theme.success)
                 privacyItem("读不到就不显示", "传感器名称与量程随机型变化，异常值会被丢弃并注明", Theme.cyan)
+            }
+        }
+    }
+
+    private var liveCard: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(title: "实时监控", symbol: "waveform.path.ecg", accent: Theme.success)
+
+                Text("充电、电池与温度页面按下面的间隔读取私有传感器。离开页面、拔掉电源或 App 进入后台时会自动暂停，不会在后台空转耗电。")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Picker("刷新间隔", selection: Binding(
+                    get: { energy.refreshInterval },
+                    set: { energy.refreshInterval = $0 }
+                )) {
+                    ForEach(ChargeMonitor.intervalOptions, id: \.self) { interval in
+                        Text("\(Int(interval)) 秒").tag(interval)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                infoRow("采样状态", energy.isSampling ? "采集中" : "待机")
+                if let last = energy.lastUpdate {
+                    infoRow("最近更新", Format.clock(last))
+                }
+                infoRow("本次采样", "\(energy.sampleCount) 次")
             }
         }
     }

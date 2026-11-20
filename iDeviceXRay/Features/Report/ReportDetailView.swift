@@ -133,7 +133,7 @@ struct ReportDetailView: View {
                             Text(section.title)
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(Theme.textPrimary)
-                            Text("\(section.readableCount) / \(section.fields.count) 项可读")
+                            Text(sectionSubtitle(section))
                                 .font(.system(size: 10))
                                 .foregroundStyle(Theme.textTertiary)
                         }
@@ -165,6 +165,14 @@ struct ReportDetailView: View {
                 }
             }
         }
+    }
+
+    /// 充电、温度、电池在详情页是实时刷新的，报告里存的只是扫描那一刻的值，
+    /// 不标出来用户会以为报告里的数字没更新是坏了。
+    private func sectionSubtitle(_ section: ReportSection) -> String {
+        let base = "\(section.readableCount) / \(section.fields.count) 项可读"
+        let liveKeys = ["power", "thermal", "battery"]
+        return liveKeys.contains(section.key) ? base + " · 扫描时快照" : base
     }
 
     // MARK: - 深度数据
@@ -237,7 +245,7 @@ struct ReportDetailView: View {
     }
 
     private var disclaimer: some View {
-        Text("报告中标记为「不可读取」的项目，代表本机确实无法取得该数据，未使用任何估算值填充。健康度等指标仅供参照，不能作为维修或交易的唯一依据。")
+        Text("报告是扫描那一刻的快照：充电功率、电压、温度、电量等会随时间变化，实时数据请从首页进入对应分区查看。标记为「不可读取」的项目代表本机确实无法取得该数据，未使用任何估算值填充。健康度等指标仅供参照，不能作为维修或交易的唯一依据。")
             .font(.system(size: 10))
             .foregroundStyle(Theme.textTertiary)
             .fixedSize(horizontal: false, vertical: true)
