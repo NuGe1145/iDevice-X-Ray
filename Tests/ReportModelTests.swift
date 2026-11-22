@@ -158,7 +158,8 @@ final class TarScannerTests: XCTestCase {
         XCTAssertTrue(DeepScanService.shouldSpillPowerlog(name: scanner.matchedFiles[0], size: 180_000_000))
     }
 
-    /// BatteryUIPlist 是二进制 plist，按 UTF-8 解码是乱码，正则永远匹配不上。    func testParsesBinaryPlistBatteryFields() throws {
+    /// BatteryUIPlist 是二进制 plist，按 UTF-8 解码是乱码，正则永远匹配不上。
+    func testParsesBinaryPlistBatteryFields() throws {
         let dict: [String: Any] = [
             "CycleCount": 258,
             "DesignCapacity": 3274,
