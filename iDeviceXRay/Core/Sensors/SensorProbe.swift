@@ -69,8 +69,21 @@ actor SensorProbe {
             }
         }
 
-        if let adapter = probe.adapterDetails() {
-            result.adapterName = (adapter["Name"] as? String) ?? (adapter["Description"] as? String)
+        // 注册表里多数键在 iOS 26+ 被过滤，但 Amperage / Voltage 在部分机型上还在。
+        // 前面两条路都没给值时试一次，读不到就是 nil，不做推断。
+        if result.reportedCurrentAmps == nil {
+            let raw = Self.number(registry["Amperage"]) ?? Self.number(registry["InstantAmperage"])
+            if let raw, raw.isFinite {
+                result.reportedCurrentAmps = abs(raw) >= 20 ? raw / 1_000 : raw
+            }
+        }
+        if result.reportedVoltageVolts == nil {
+            if let raw = Self.number(registry["Voltage"]), raw.isFinite {
+                result.reportedVoltageVolts = raw >= 1_000 ? raw / 1_000 : raw
+            }
+        }
+
+        if let adapter = probe.adapterDetails() {            result.adapterName = (adapter["Name"] as? String) ?? (adapter["Description"] as? String)
             let voltage = Self.convert(adapter["AdapterVoltage"] ?? adapter["Voltage"], milliThreshold: 1_000)
             let current = Self.convert(adapter["Current"], milliThreshold: 100)
             result.adapterVoltage = voltage
