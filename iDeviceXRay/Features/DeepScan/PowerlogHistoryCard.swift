@@ -40,6 +40,16 @@ struct PowerlogHistoryCard: View {
                 .font(.system(size: 9))
                 .foregroundStyle(Theme.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            // 命中的表与列直接摊在这里。列名对不上时，这张卡片本身就是诊断信息，
+            // 不必让用户去翻报告 JSON。
+            if !summary.matchedColumns.isEmpty {
+                Text(summary.matchedColumns.prefix(6).joined(separator: " · "))
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundStyle(Theme.textTertiary.opacity(0.8))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(14)
         .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
