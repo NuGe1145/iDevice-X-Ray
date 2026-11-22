@@ -47,16 +47,15 @@ struct BatteryEngine {
 
         // MARK: 实时电压与温度（私有 SMC 通道，无需任何导入）
 
-        if let reading = snapshot.voltage("VP0u") ?? snapshot.voltage("VQ0l"),
-           reading.value.isFinite, (2.5...5.5).contains(reading.value) {
+        if let reading = snapshot.batteryVoltageRail(), reading.value.isFinite {
             fields.append(ReportField(
                 key: "battery.voltage",
                 title: "电池电压",
                 value: String(format: "%.2f", reading.value),
                 unit: "V",
-                source: .privateAPI,
+                source: reading.isSystemReported ? .live : .privateAPI,
                 confidence: .high,
-                note: "SMC 通道 \(reading.key)，随采样实时更新"
+                note: "\(reading.source)，随采样实时更新"
             ))
         } else {
             fields.append(.unavailable(

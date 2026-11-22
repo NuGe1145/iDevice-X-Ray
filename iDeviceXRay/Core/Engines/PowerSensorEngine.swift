@@ -43,11 +43,11 @@ struct PowerSensorEngine {
                 "私有 HID 接口实时读取 · \(soc.name) · SMC \(soc.key)"
             )
         }
-        if let voltage = snapshot.voltage("VP0u") ?? snapshot.voltage("VQ0l") {
+        if let voltage = snapshot.batteryVoltageRail() {
             replacements["battery.voltage"] = (
                 number(voltage.value, digits: 2),
                 "V",
-                "私有 HID 接口实时读取 · SMC \(voltage.key)"
+                voltage.source
             )
         }
 
@@ -87,8 +87,10 @@ struct PowerSensorEngine {
         }
 
         let power = snapshot.power
-        let batteryVoltage = snapshot.voltage("VP0u") ?? snapshot.voltage("VQ0l")
-        let batteryCurrent = snapshot.current("IQ0B") ?? snapshot.current("IQ0l")
+        // 电池端读数走统一的解析：系统上报优先，其次已知 SMC 键，
+        // 再次「分类为电池」的其他电流通道。只认 IQ0B 会在 iPad 上拿到死值。
+        let batteryVoltage = snapshot.batteryVoltageRail()
+        let batteryCurrent = snapshot.batteryCurrentRail()
 
         if power.externalConnected {
             fields.append(ReportField(
@@ -196,46 +198,53 @@ struct PowerSensorEngine {
                 title: "电池端电压",
                 value: number(batteryVoltage.value, digits: 2),
                 unit: "V",
-                source: .privateAPI,
+                source: batteryVoltage.isSystemReported ? .live : .privateAPI,
                 confidence: .verified,
-                note: railNote(batteryVoltage)
+                note: batteryVoltage.source
             ))
         }
 
         var batteryWatts: Double?
-        if power.charging, let batteryCurrent, abs(batteryCurrent.value) > 0.02 {
+        if let batteryCurrent, abs(batteryCurrent.value) > 0.02 {
+            let flowingIn = batteryCurrent.value > 0
             fields.append(ReportField(
                 key: "power.battery.current",
-                title: "充入电池电流",
+                title: flowingIn ? "充入电池电流" : "电池放电电流",
                 value: number(abs(batteryCurrent.value), digits: 2),
                 unit: "A",
-                source: .privateAPI,
+                source: batteryCurrent.isSystemReported ? .live : .privateAPI,
                 confidence: .verified,
-                note: railNote(batteryCurrent)
+                note: batteryCurrent.source
             ))
             if let voltage = batteryVoltage?.value {
-                batteryWatts = voltage * abs(batteryCurrent.value)
+                if flowingIn { batteryWatts = voltage * abs(batteryCurrent.value) }
                 fields.append(ReportField(
                     key: "power.battery.watts",
-                    title: "充入电池功率",
+                    title: flowingIn ? "充入电池功率" : "电池放电功率",
                     value: number(voltage * abs(batteryCurrent.value), digits: 2),
                     unit: "W",
-                    source: .privateAPI,
+                    source: batteryCurrent.isSystemReported ? .live : .privateAPI,
                     confidence: .verified,
-                    note: "VP0u × IQ0B"
+                    note: "电池端 \(number(voltage, digits: 2)) V × \(number(abs(batteryCurrent.value), digits: 2)) A"
                 ))
             }
         } else if power.externalConnected {
-            fields.append(unavailable(
-                "power.battery.current",
-                "充入电池电流",
-                "已连接电源但当前未向电池充电（可能已充满或触发了温度保护）"
-            ))
+            var reason: String
+            if power.fullCharge {
+                reason = "已充满，电池不再进电"
+            } else {
+                reason = "适配器在供电，但电池净电流接近零（既没在充也没在放）。常见原因是充电策略限制、温度保护，或适配器功率刚好抵掉整机功耗"
+            }
+            // 读不到时把枚举到的电流通道摊出来：哪条轨道是活的，一眼能看出来
+            if !snapshot.currentRailsSummary.isEmpty {
+                reason += "。枚举到的电流通道：\(snapshot.currentRailsSummary)"
+            }
+            fields.append(unavailable("power.battery.current", "充入电池电流", reason))
         } else {
             fields.append(unavailable(
                 "power.battery.current",
                 "充入电池电流",
-                "未连接电源，电池处于放电状态；放电电流没有可读的传感器通道"
+                "未连接电源，电池处于放电状态；系统没有给出可用的放电电流通道"
             ))
         }
 
@@ -328,16 +337,16 @@ struct PowerSensorEngine {
             note: "系统电源状态实时读取"
         )
 
-        let voltage = snapshot.voltage("VP0u") ?? snapshot.voltage("VQ0l")
+        let voltage = snapshot.batteryVoltageRail()
         if let voltage {
             replacements["battery.voltage"] = ReportField(
                 key: "battery.voltage",
                 title: "电池电压",
                 value: number(voltage.value, digits: 2),
                 unit: "V",
-                source: .privateAPI,
+                source: voltage.isSystemReported ? .live : .privateAPI,
                 confidence: .verified,
-                note: "SMC \(voltage.key) · \(voltage.name)"
+                note: voltage.source
             )
         }
 
@@ -354,25 +363,25 @@ struct PowerSensorEngine {
         }
 
         var extras: [ReportField] = []
-        if let current = snapshot.current("IQ0B") ?? snapshot.current("IQ0l") {
+        if let current = snapshot.batteryCurrentRail() {
             extras.append(ReportField(
                 key: "battery.current",
                 title: current.value >= 0 ? "充入电流" : "放电电流",
-                value: number(current.value, digits: 2),
+                value: number(abs(current.value), digits: 2),
                 unit: "A",
-                source: .privateAPI,
+                source: current.isSystemReported ? .live : .privateAPI,
                 confidence: .verified,
-                note: "SMC \(current.key) · 有符号，正为充入电池"
+                note: "\(current.source) · 有符号，正为充入电池"
             ))
             if let voltage {
                 extras.append(ReportField(
                     key: "battery.power",
                     title: "实时功率",
-                    value: number(voltage.value * current.value, digits: 2),
+                    value: number(voltage.value * abs(current.value), digits: 2),
                     unit: "W",
                     source: .privateAPI,
                     confidence: .verified,
-                    note: "电池端 \(number(voltage.value, digits: 2)) V × \(number(current.value, digits: 2)) A"
+                    note: "电池端 \(number(voltage.value, digits: 2)) V × \(number(abs(current.value), digits: 2)) A"
                 ))
             }
         }

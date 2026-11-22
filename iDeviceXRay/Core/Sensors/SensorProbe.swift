@@ -57,6 +57,16 @@ actor SensorProbe {
             }
             result.charging = (battery["IsCharging"] as? Bool) ?? false
             result.fullCharge = (battery["IsCharged"] as? Bool) ?? false
+
+            // IOPS 描述里若带 Current / Voltage，就是系统自己的电池端读数，
+            // 比 HID 电源轨可靠得多：不依赖 SMC 键名，跨机型一致。
+            // 单位在不同系统上是 mA / mV，也可能是 A / V，用不可能的量级区分。
+            if let raw = Self.number(battery["Current"]), raw.isFinite {
+                result.reportedCurrentAmps = abs(raw) >= 20 ? raw / 1_000 : raw
+            }
+            if let raw = Self.number(battery["Voltage"]), raw.isFinite {
+                result.reportedVoltageVolts = raw >= 1_000 ? raw / 1_000 : raw
+            }
         }
 
         if let adapter = probe.adapterDetails() {

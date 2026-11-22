@@ -310,8 +310,10 @@ final class ChargeMonitor {
             return v * i
         }()
 
-        let batteryVoltage = (snap.voltage("VP0u") ?? snap.voltage("VQ0l"))?.value
-        let batteryCurrent = (snap.current("IQ0B") ?? snap.current("IQ0l"))?.value
+        // 统一走 rail 解析：系统上报优先，其次已知 SMC 键，再次电池类通道。
+        // 只认 IQ0B 会在 iPad 上读到一个恒为 0 的死通道。
+        let batteryVoltage = snap.batteryVoltageRail()?.value
+        let batteryCurrent = snap.batteryCurrentRail()?.value
         let batteryWatts: Double? = {
             guard let v = batteryVoltage, let i = batteryCurrent, abs(i) > 0.02 else { return nil }
             return v * i

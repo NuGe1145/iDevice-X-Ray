@@ -386,10 +386,16 @@ struct ChargeLiveCard: View {
             railCell("输入电压", sample?.inputVoltage, 2, "V")
             railCell("输入电流", sample?.inputCurrent, 2, "A")
             railCell("电池电压", sample?.batteryVoltage, 2, "V")
-            railCell(monitor.isCharging ? "充入电流" : "电池电流", sample?.batteryCurrent?.magnitude, 2, "A")
+            railCell(batteryCurrentTitle, sample?.batteryCurrent?.magnitude, 2, "A")
             railCell("电池温度", sample?.batteryTemperature, 1, "°C")
             railCell("充电 IC", sample?.chargerTemperature, 1, "°C")
         }
+    }
+
+    /// 有符号电流：正为充入，负为放电。读不到时用中性标题，别声称「充入」。
+    private var batteryCurrentTitle: String {
+        guard let value = sample?.batteryCurrent else { return "电池电流" }
+        return value >= 0 ? "充入电流" : "放电电流"
     }
 
     private func railCell(_ title: String, _ value: Double?, _ digits: Int, _ unit: String) -> some View {

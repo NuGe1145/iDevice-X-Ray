@@ -89,6 +89,8 @@ final class SensorMathTests: XCTestCase {
 
     // MARK: - 最热测点
 
+    // MARK: - 最热测点
+
     func testHottestWithinZones() {
         var snapshot = EnergySnapshot.empty
         snapshot.temperatures = [
@@ -100,5 +102,60 @@ final class SensorMathTests: XCTestCase {
         XCTAssertEqual(snapshot.hottest(in: [.battery])?.value, 33)
         XCTAssertEqual(snapshot.hottest(in: [.charger, .soc])?.value, 52)
         XCTAssertNil(snapshot.hottest(in: [.storage]))
+    }
+
+    // MARK: - 电池端通道解析
+
+    /// iPad Air 5 上 `IQ0B` 存在但恒为 0.00 A，真实电流在另一条电池轨道上。
+    /// 只认固定键会一直显示 0，必须让非零通道优先。
+    func testBatteryCurrentPrefersLiveRailOverDeadKey() {
+        var snapshot = EnergySnapshot.empty
+        snapshot.currents = [
+            SensorReading(name: "battery charge current", key: "IQ0B", zone: .battery, kind: .current, value: 0, copies: 1),
+            SensorReading(name: "battery current", key: "B0AC", zone: .battery, kind: .current, value: 1.42, copies: 1),
+            SensorReading(name: "USB input current", key: "IQ0u", zone: .charger, kind: .current, value: 0.43, copies: 1)
+        ]
+
+        let rail = snapshot.batteryCurrentRail()
+        XCTAssertEqual(rail?.value ?? 0, 1.42, accuracy: 0.01)
+        XCTAssertEqual(rail?.source.contains("B0AC"), true)
+    }
+
+    /// 系统电源描述上报的值最权威：跨机型一致，不受 SMC 键改名影响。
+    func testBatteryCurrentPrefersSystemReportedValue() {
+        var snapshot = EnergySnapshot.empty
+        snapshot.power.reportedCurrentAmps = -0.62
+        snapshot.currents = [
+            SensorReading(name: "battery current", key: "IQ0B", zone: .battery, kind: .current, value: 0, copies: 1)
+        ]
+
+        let rail = snapshot.batteryCurrentRail()
+        XCTAssertEqual(rail?.value ?? 0, -0.62, accuracy: 0.001)
+        XCTAssertEqual(rail?.isSystemReported, true)
+    }
+
+    /// 全为零不等于「电流是 0」，是没有读数。宁可返回 nil 让界面显示「—」。
+    func testBatteryCurrentIsNilWhenEveryRailIsZero() {
+        var snapshot = EnergySnapshot.empty
+        snapshot.currents = [
+            SensorReading(name: "battery current", key: "IQ0B", zone: .battery, kind: .current, value: 0, copies: 1)
+        ]
+        XCTAssertNil(snapshot.batteryCurrentRail())
+    }
+
+    func testBatteryVoltageFallsBackToBatteryZone() {
+        var snapshot = EnergySnapshot.empty
+        snapshot.voltages = [
+            SensorReading(name: "battery voltage", key: "ZZ99", zone: .battery, kind: .voltage, value: 4.22, copies: 1)
+        ]
+        XCTAssertEqual(snapshot.batteryVoltageRail()?.value ?? 0, 4.22, accuracy: 0.01)
+    }
+
+    func testBatteryVoltageRejectsImplausible() {
+        var snapshot = EnergySnapshot.empty
+        snapshot.voltages = [
+            SensorReading(name: "battery voltage", key: "VP0u", zone: .battery, kind: .voltage, value: 0.01, copies: 1)
+        ]
+        XCTAssertNil(snapshot.batteryVoltageRail())
     }
 }

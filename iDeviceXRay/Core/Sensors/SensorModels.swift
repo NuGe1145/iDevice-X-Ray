@@ -164,6 +164,13 @@ struct EnergySnapshot: Sendable {
         var adapterVoltage: Double?
         var adapterCurrent: Double?
         var adapterProfileCount: Int = 0
+
+        /// 系统电源描述里上报的电池电流（A，负为放电）。
+        /// `IOPSCopyPowerSourcesInfo` 是公开接口，比 HID 通道更权威；
+        /// 它在部分机型上直接给 `Current`（mA），不必去猜 SMC 键。
+        var reportedCurrentAmps: Double?
+        /// 系统上报的电池端电压（V）。
+        var reportedVoltageVolts: Double?
     }
 
     var temperatures: [SensorReading] = []
@@ -186,5 +193,78 @@ struct EnergySnapshot: Sendable {
         temperatures
             .filter { zones.contains($0.zone) }
             .max { $0.value < $1.value }
+    }
+}
+
+// MARK: - 电池端电压 / 电流
+
+/// 一个通道读数的来源说明。数值和「从哪读的」必须一起走，
+/// 否则界面上会出现一个没有出处的数字。
+struct RailReading: Sendable {
+    let value: Double
+    let source: String
+    /// 该值是否来自系统公开描述，而不是 HID 电源轨
+    let isSystemReported: Bool
+}
+
+extension EnergySnapshot {
+
+    /// 电池端电压。`VP0u` / `VQ0l` 是 iPad 与 iPhone 上常见的两个键；
+    /// 都对不上时退到「分类为电池」的电压通道里取最大的那个。
+    func batteryVoltageRail() -> RailReading? {
+        if let volts = power.reportedVoltageVolts, (2.5...5.5).contains(volts) {
+            return RailReading(value: volts, source: "系统电源描述上报", isSystemReported: true)
+        }
+
+        let known = ["VP0u", "VQ0l", "B0AV"]
+        var candidates = known.compactMap { key in voltages.first { $0.key == key } }
+        candidates += voltages.filter { $0.zone == .battery && !known.contains($0.key) }
+
+        let valid = candidates.filter { (2.5...5.5).contains($0.value) }
+        guard let best = valid.max(by: { $0.value < $1.value }) else { return nil }
+        return RailReading(value: best.value, source: railSource(best), isSystemReported: false)
+    }
+
+    /// 电池端电流（有符号，正为充入）。
+    ///
+    /// 只看一个固定键是不够的：iPad Air 5 上 `IQ0B` 存在但长期停在 0.00 A，
+    /// 真正的充放电流在另一条轨道上。所以把系统上报值、已知键、以及所有
+    /// 「分类为电池」的电流通道放在一起，**非零优先，其次看绝对值**。
+    /// 全为零时返回 nil —— 那是「没有读数」，不是「电流是 0」。
+    func batteryCurrentRail() -> RailReading? {
+        var candidates: [RailReading] = []
+
+        if let amps = power.reportedCurrentAmps, amps.isFinite {
+            candidates.append(RailReading(value: amps, source: "系统电源描述上报", isSystemReported: true))
+        }
+
+        let known = ["B0AC", "IQ0B", "IQ0l"]
+        for key in known {
+            if let reading = currents.first(where: { $0.key == key }) {
+                candidates.append(RailReading(value: reading.value, source: railSource(reading), isSystemReported: false))
+            }
+        }
+        for reading in currents where reading.zone == .battery && !known.contains(reading.key) {
+            candidates.append(RailReading(value: reading.value, source: railSource(reading), isSystemReported: false))
+        }
+
+        let live = candidates.filter { abs($0.value) > 0.02 }
+        guard let best = live.max(by: { abs($0.value) < abs($1.value) }) else { return nil }
+        return best
+    }
+
+    /// 所有电流通道的一行摘要，给「读不到」时做诊断用。
+    var currentRailsSummary: String {
+        guard !currents.isEmpty else { return "" }
+        return currents.prefix(8).map { reading in
+            let key = reading.key.isEmpty ? reading.name : reading.key
+            return "\(key) \(String(format: "%.2f", abs(reading.value)))A"
+        }
+        .joined(separator: " · ")
+    }
+
+    private func railSource(_ reading: SensorReading) -> String {
+        let key = reading.key.isEmpty ? reading.name : reading.key
+        return "SMC \(key) · \(reading.name)"
     }
 }
