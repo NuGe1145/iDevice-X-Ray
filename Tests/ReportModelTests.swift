@@ -135,8 +135,30 @@ final class TarScannerTests: XCTestCase {
         ))
     }
 
-    /// BatteryUIPlist 是二进制 plist，按 UTF-8 解码是乱码，正则永远匹配不上。
-    func testParsesBinaryPlistBatteryFields() throws {
+    /// 真机包里日志路径常常超过 tar 头的 100 字节，完整名字存在前一条 PAX 扩展头里。
+    /// 不把这段接上，主库的名字会被截断成 `.../logs/powerl`，后缀判断必然失配。
+    func testPaxLongNameIsReattached() {
+        let longName = "sysdiagnose_2026.11.20_09-08-07+0800_iPhone-OS_iPad_24C5037i/logs/powerlogs/powerlog_2026-11-20_09-08_908E6B0B.PLSQL"
+        XCTAssertGreaterThan(longName.utf8.count, 100, "这个名字必须超过 tar 头的 100 字节上限")
+
+        let scanner = TarScanner(keywords: ["powerlog"])
+        scanner.feed(makeEntry(
+            name: "PaxHeader/powerlog_2026-11-20_09-08_908E6B0B.PLSQL",
+            content: paxRecord(key: "path", value: longName),
+            typeFlag: 0x78 // 'x'
+        ))
+        // 真实条目头里只有被截断的路径
+        scanner.feed(makeEntry(
+            name: "sysdiagnose_2026.11.20_09-08-07+0800_iPhone-OS_iPad_24C5037i/logs/powerl",
+            content: "SQLite format 3"
+        ))
+        scanner.finish()
+
+        XCTAssertEqual(scanner.matchedFiles, [longName])
+        XCTAssertTrue(DeepScanService.shouldSpillPowerlog(name: scanner.matchedFiles[0], size: 180_000_000))
+    }
+
+    /// BatteryUIPlist 是二进制 plist，按 UTF-8 解码是乱码，正则永远匹配不上。    func testParsesBinaryPlistBatteryFields() throws {
         let dict: [String: Any] = [
             "CycleCount": 258,
             "DesignCapacity": 3274,
@@ -156,7 +178,7 @@ final class TarScannerTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func makeEntry(name: String, content: String) -> Data {
+    private func makeEntry(name: String, content: String, typeFlag: UInt8 = 0x30) -> Data {
         var header = [UInt8](repeating: 0, count: 512)
 
         let nameBytes = Array(name.utf8)
@@ -170,12 +192,23 @@ final class TarScannerTests: XCTestCase {
             header[124 + index] = byte
         }
 
-        header[156] = 0x30 // '0'
+        header[156] = typeFlag
 
         var data = Data(header)
         data.append(contentsOf: Array(content.utf8))
         let padding = (512 - content.utf8.count % 512) % 512
         data.append(contentsOf: [UInt8](repeating: 0, count: padding))
         return data
+    }
+
+    /// PAX 记录格式：`<总长> <key>=<value>\n`，总长包含自身。
+    private func paxRecord(key: String, value: String) -> String {
+        let body = " \(key)=\(value)\n"
+        var length = body.utf8.count
+        while true {
+            let total = String(length).utf8.count + body.utf8.count
+            if total == length { return "\(length)\(body)" }
+            length = total
+        }
     }
 }

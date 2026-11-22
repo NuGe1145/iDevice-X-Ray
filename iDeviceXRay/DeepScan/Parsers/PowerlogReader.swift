@@ -1,11 +1,22 @@
 import Foundation
 import SQLite3
 
-/// 读取 `CurrentPowerlog.PLSQL`。
+/// 读取 Powerlog 数据库（`powerlog_*.PLSQL` / `CurrentPowerlog.PLSQL`）。
 ///
-/// 不假设表结构：先列出所有 `PLBatteryAgent*` 表，对每张表读 `PRAGMA table_info`，
-/// 按列名分配「角色」（时间戳 / 循环次数 / 容量 / 温度…），再挑命中角色最多的一张查。
-/// 写死列名一定会在某个 iOS 版本上失效，而 powerlog 的表结构每代都在变。
+/// 三条原则，都是被真机回包打出来的：
+///
+/// 1. **不假设表名**。iOS 26/27 起主库文件名从 `CurrentPowerlog.PLSQL` 改成
+///    `powerlog_2026-11-20_09-08_XXXX.PLSQL`，表名同样会变。这里先按名字分层
+///    （PLBatteryAgent → 含 battery → 含 charger / energy），全部落空时再退到
+///    SMC / 热相关表，绝不因为一个前缀对不上就放弃。
+/// 2. **不假设列名**。`AppleRawMaxCapacity`、`RawMaxCapacity`、`MaxCapacity`
+///    在不同代际里都出现过，用「归一化后包含」加权匹配，而不是精确相等。
+/// 3. **跨表取数**。循环次数常常不在容量表里，而在 `..._UpdateBatteryInfo`
+///    之类的表；只挑一张「最像」的表，就会拿到半份数据。这里每张候选表都读，
+///    标量取时间最新的一份，曲线取点最多的一份。
+///
+/// 解不出来就返回 nil，并把「检查了哪些表、各有哪些列」写进 notes，交给界面
+/// 和报告展示——猜一个数比空着更糟。
 enum PowerlogReader {
 
     struct Outcome {
@@ -13,26 +24,57 @@ enum PowerlogReader {
         var notes: [String] = []
     }
 
-    /// 单表最多取多少行。60 秒一条的话 3 万行约等于 20 天，够画衰减曲线了。
-    private static let maxRows = 30_000
+    /// 单表最多取多少行。60 秒一条的话 1.2 万行约等于 8 天，够画形状。
+    /// 六张表同时进内存，行数再大就只是浪费。
+    private static let maxRowsPerTable = 12_000
+    private static let maxTablesToRead = 6
+    private static let maxTablesToInspect = 240
 
     // MARK: - 列角色
 
-    private enum Role: Hashable {
+    private enum Role: Hashable, CaseIterable {
         case timestamp, cycleCount, designCapacity, maxCapacity, currentCapacity
         case temperature, voltage, amperage
+
+        var weight: Int {
+            switch self {
+            case .timestamp: return 0
+            case .cycleCount: return 6
+            case .designCapacity, .maxCapacity: return 4
+            case .temperature: return 3
+            case .currentCapacity: return 2
+            case .voltage, .amperage: return 1
+            }
+        }
     }
 
-    private static let aliases: [Role: Set<String>] = [
-        .timestamp: ["timestamp", "time", "datetime"],
-        .cycleCount: ["cyclecount"],
-        .designCapacity: ["designcapacity", "nominalchargecapacity", "nominalcapacity"],
-        .maxCapacity: ["applerawmaxcapacity", "rawmaxcapacity", "applemaxcapacity", "maxcapacity"],
-        .currentCapacity: ["applerawcurrentcapacity", "rawcurrentcapacity", "applecurrentcapacity", "currentcapacity"],
-        .temperature: ["temperature", "batterytemperature"],
-        .voltage: ["voltage", "batteryvoltage"],
-        .amperage: ["amperage", "instantamperage"]
+    /// 归一化（小写、只留字母数字）之后按「包含」匹配，取权重最高的一列。
+    /// 权重差就是为了解决 `AppleRawMaxCapacity` 和 `MaxCapacity` 同时存在时选错。
+    private static let rolePatterns: [Role: [(needle: String, weight: Int)]] = [
+        .timestamp: [("timestamp", 10), ("unixtime", 8), ("time", 3)],
+        .cycleCount: [("cyclecount", 10), ("cycle", 4)],
+        .designCapacity: [
+            ("designcapacity", 10), ("nominalchargecapacity", 9),
+            ("designcap", 8), ("nominalcapacity", 6)
+        ],
+        .maxCapacity: [
+            ("applerawmaxcapacity", 12), ("rawmaxcapacity", 11),
+            ("applemaxcapacity", 9), ("maxcapacity", 8), ("fullchargecapacity", 7)
+        ],
+        .currentCapacity: [
+            ("applerawcurrentcapacity", 12), ("rawcurrentcapacity", 11),
+            ("applecurrentcapacity", 9), ("currentcapacity", 8), ("remainingcapacity", 7)
+        ],
+        .temperature: [("batterytemperature", 12), ("temperature", 10)],
+        .voltage: [("batteryvoltage", 12), ("voltage", 10)],
+        .amperage: [("instantamperage", 12), ("amperage", 10)]
     ]
+
+    private struct Plan {
+        let table: String
+        let mapping: [Role: String]
+        let score: Int
+    }
 
     // MARK: - 入口
 
@@ -56,33 +98,52 @@ enum PowerlogReader {
 
         sqlite3_busy_timeout(db, 2_000)
 
-        let candidates = tableNames(db).filter { $0.lowercased().hasPrefix("plbatteryagent") }
+        let allTables = tableNames(db)
+        let candidates = candidateTables(allTables)
         guard !candidates.isEmpty else {
-            let total = tableNames(db).count
-            outcome.notes.append("Powerlog 已打开（\(total) 张表），但没有 PLBatteryAgent 表，电池历史不可用")
+            outcome.notes.append("Powerlog 已打开（\(allTables.count) 张表），其中没有电池相关表，历史不可用")
             return outcome
         }
 
-        var best: (table: String, columns: [Role: String], score: Int)?
-        for table in candidates {
-            let columns = columnsOf(db, table: table)
-            let mapping = mapRoles(columns)
-            guard mapping[.timestamp] != nil else { continue }
-            let score = scoreOf(mapping)
-            if score > (best?.score ?? 0) {
-                best = (table, mapping, score)
+        var plans: [Plan] = []
+        for candidate in candidates {
+            let columns = columnsOf(db, table: candidate.name)
+            guard !columns.isEmpty else { continue }
+            let mapping = pickColumns(columns)
+            guard mapping[.timestamp] != nil, mapping.count > 1 else { continue }
+
+            var score = candidate.tier / 10
+            for role in Role.allCases where mapping[role] != nil {
+                score += role.weight
             }
+            plans.append(Plan(table: candidate.name, mapping: mapping, score: score))
         }
 
-        guard let best else {
-            outcome.notes.append("找到 \(candidates.count) 张 PLBatteryAgent 表，但没有一张带时间戳列，无法按时间排序")
+        guard !plans.isEmpty else {
+            outcome.notes.append(diagnose(db, candidates: candidates))
             return outcome
         }
 
-        let summary = summarize(db, table: best.table, mapping: best.columns, candidateCount: candidates.count)
+        // 分高的先读：PLBatteryAgent 主表排在前面，SMC / 热表兜底
+        plans.sort { $0.score > $1.score }
+        let chosen = Array(plans.prefix(maxTablesToRead))
+
+        var loaded: [(plan: Plan, rows: [[String: Double]])] = []
+        for plan in chosen {
+            let rows = query(db, sql: selectSQL(for: plan), limit: maxRowsPerTable)
+            guard !rows.isEmpty else { continue }
+            loaded.append((plan, rows))
+        }
+
+        guard !loaded.isEmpty else {
+            outcome.notes.append("Powerlog 里 \(chosen.count) 张候选表都读不出数据（可能被加密或为空）")
+            return outcome
+        }
+
+        let summary = summarize(loaded: loaded, candidateCount: candidates.count)
         outcome.summary = summary
         if summary == nil {
-            outcome.notes.append("表 \(best.table) 结构未识别出可用列，需要真机样本补充映射")
+            outcome.notes.append(diagnose(db, candidates: candidates))
         }
         return outcome
     }
@@ -90,104 +151,194 @@ enum PowerlogReader {
     // MARK: - 汇总
 
     private static func summarize(
-        _ db: OpaquePointer,
-        table: String,
-        mapping: [Role: String],
+        loaded: [(plan: Plan, rows: [[String: Double]])],
         candidateCount: Int
     ) -> PowerlogSummary? {
-        guard let timestampColumn = mapping[.timestamp] else { return nil }
+        var cycle: (value: Int, date: Date)?
+        var design: (value: Int, date: Date)?
+        var maxCapacity: (value: Int, date: Date)?
+        var latestTemperature: (value: Double, date: Date)?
+        var latestVoltage: (value: Double, date: Date)?
+        var rowCount = 0
+        var matched: [String] = []
 
-        var selected: [Role] = [.timestamp]
-        for role in [Role.cycleCount, .designCapacity, .maxCapacity, .currentCapacity, .temperature, .voltage, .amperage] {
-            if mapping[role] != nil { selected.append(role) }
-        }
-        guard selected.count > 1 else { return nil }
+        for item in loaded {
+            rowCount += item.rows.count
+            let mapping = item.plan.mapping
+            matched.append(contentsOf: Role.allCases.compactMap { role in
+                mapping[role].map { "\(item.plan.table).\($0)" }
+            })
 
-        let columnList = selected.compactMap { mapping[$0] }
-            .map { quote($0) }
-            .joined(separator: ", ")
+            // 行按时间倒序取回，第一行有效值就是最新；跨表比较日期取更近的一份
+            for row in item.rows {
+                guard let rawTime = row[mapping[.timestamp] ?? ""], let date = decodeDate(rawTime) else { continue }
 
-        let sql = "SELECT \(columnList) FROM \(quote(table)) ORDER BY \(quote(timestampColumn)) DESC LIMIT \(maxRows)"
-        let rows = query(db, sql)
-        guard !rows.isEmpty else { return nil }
-
-        var cycleCount: Int?
-        var designCapacity: Int?
-        var maxCapacity: Int?
-        var latestTemperature: Double?
-        var latestVoltage: Double?
-
-        var capacities: [PowerlogSummary.Point] = []
-        var temperatures: [PowerlogSummary.Point] = []
-
-        // 倒序取回来，画图要从早到晚
-        for row in rows {
-            guard let rawTime = row[timestampColumn], let date = decodeDate(rawTime) else { continue }
-
-            if let column = mapping[.cycleCount], let value = row[column], value > 0, value < 5_000 {
-                cycleCount = cycleCount ?? Int(value)
-            }
-            if let column = mapping[.designCapacity], let value = row[column], value > 100, value < 20_000 {
-                designCapacity = designCapacity ?? Int(value)
-            }
-            if let column = mapping[.maxCapacity], let value = row[column], value > 100, value < 20_000 {
-                maxCapacity = maxCapacity ?? Int(value)
-            }
-            if let column = mapping[.temperature], let value = row[column], let celsius = decodeCelsius(value) {
-                if latestTemperature == nil { latestTemperature = celsius }
-                temperatures.append(.init(time: date, value: celsius))
-            }
-            if let column = mapping[.voltage], let value = row[column], let volts = decodeVolts(value) {
-                if latestVoltage == nil { latestVoltage = volts }
+                if let column = mapping[.cycleCount], let value = row[column], value > 0, value < 5_000 {
+                    if cycle == nil || date > cycle!.date { cycle = (Int(value), date) }
+                }
+                if let column = mapping[.designCapacity], let value = row[column], value > 100, value < 20_000 {
+                    if design == nil || date > design!.date { design = (Int(value), date) }
+                }
+                if let column = mapping[.maxCapacity], let value = row[column], value > 100, value < 20_000 {
+                    if maxCapacity == nil || date > maxCapacity!.date { maxCapacity = (Int(value), date) }
+                }
+                if let column = mapping[.temperature], let value = row[column], let celsius = decodeCelsius(value) {
+                    if latestTemperature == nil || date > latestTemperature!.date { latestTemperature = (celsius, date) }
+                }
+                if let column = mapping[.voltage], let value = row[column], let volts = decodeVolts(value) {
+                    if latestVoltage == nil || date > latestVoltage!.date { latestVoltage = (volts, date) }
+                }
             }
         }
 
-        // 容量曲线：优先用每行的 max/design 算百分比，退化时用每行 current/max 算剩余量百分比
-        let design = designCapacity
-        for row in rows {
-            guard let rawTime = row[timestampColumn], let date = decodeDate(rawTime) else { continue }
+        // 曲线整段来自同一张表：不同表的量纲和采样频率都不一样，拼起来会骗人
+        var capacityPoints: [PowerlogSummary.Point] = []
+        var temperaturePoints: [PowerlogSummary.Point] = []
+        var capacityUnit = "mAh"
+        var dominantTable = loaded[0].plan.table
+        var dominantFields = -1
 
-            if let column = mapping[.maxCapacity], let raw = row[column], raw > 100, raw < 20_000 {
-                if let design, design > 0 {
-                    let percent = raw / Double(design) * 100
-                    if (25...130).contains(percent) {
-                        capacities.append(.init(time: date, value: percent))
+        for item in loaded {
+            let mapping = item.plan.mapping
+            var fields = 0
+            for role in Role.allCases where mapping[role] != nil && role != .timestamp { fields += 1 }
+            if fields > dominantFields {
+                dominantFields = fields
+                dominantTable = item.plan.table
+            }
+
+            var points: [PowerlogSummary.Point] = []
+            for row in item.rows {
+                guard let rawTime = row[mapping[.timestamp] ?? ""], let date = decodeDate(rawTime) else { continue }
+
+                if let column = mapping[.maxCapacity], let value = row[column], value > 100, value < 20_000 {
+                    if let design, design.value > 0 {
+                        let percent = value / Double(design.value) * 100
+                        if (25...130).contains(percent) { points.append(.init(time: date, value: percent)) }
+                    } else {
+                        points.append(.init(time: date, value: value))
                     }
-                } else {
-                    capacities.append(.init(time: date, value: raw))
+                } else if let column = mapping[.currentCapacity], let value = row[column], value > 100, value < 20_000,
+                          let max = maxCapacity?.value, max > 0 {
+                    let percent = value / Double(max) * 100
+                    if (0...110).contains(percent) { points.append(.init(time: date, value: percent)) }
                 }
-            } else if let column = mapping[.currentCapacity],
-                      let raw = row[column], raw > 100, raw < 20_000,
-                      let max = maxCapacity, max > 0 {
-                let percent = raw / Double(max) * 100
-                if (0...110).contains(percent) {
-                    capacities.append(.init(time: date, value: percent))
+            }
+
+            if points.count > capacityPoints.count {
+                capacityPoints = points
+                capacityUnit = design == nil ? "mAh" : "%"
+            }
+
+            var temperatures: [PowerlogSummary.Point] = []
+            for row in item.rows {
+                guard let rawTime = row[mapping[.timestamp] ?? ""], let date = decodeDate(rawTime) else { continue }
+                if let column = mapping[.temperature], let value = row[column], let celsius = decodeCelsius(value) {
+                    temperatures.append(.init(time: date, value: celsius))
                 }
+            }
+            if temperatures.count > temperaturePoints.count {
+                temperaturePoints = temperatures
             }
         }
 
-        let sortedCapacity = capacities.sorted { $0.time < $1.time }
-        let sortedTemperature = temperatures.sorted { $0.time < $1.time }
+        let sortedCapacity = capacityPoints.sorted { $0.time < $1.time }
+        let sortedTemperature = temperaturePoints.sorted { $0.time < $1.time }
+
+        let hasScalar = cycle != nil || design != nil || maxCapacity != nil
+            || latestTemperature != nil || latestVoltage != nil
+        guard hasScalar || !sortedCapacity.isEmpty || !sortedTemperature.isEmpty else {
+            return nil
+        }
 
         let first = min(sortedCapacity.first?.time ?? .distantFuture, sortedTemperature.first?.time ?? .distantFuture)
         let last = max(sortedCapacity.last?.time ?? .distantPast, sortedTemperature.last?.time ?? .distantPast)
 
+        var seenColumns = Set<String>()
+        let uniqueColumns = matched.filter { seenColumns.insert($0).inserted }
+
         return PowerlogSummary(
-            table: table,
-            matchedColumns: selected.compactMap { mapping[$0] },
-            rowCount: rows.count,
+            table: loaded.count > 1 ? "\(dominantTable) +\(loaded.count - 1)" : dominantTable,
+            matchedColumns: Array(uniqueColumns.prefix(12)),
+            rowCount: rowCount,
             candidateTables: candidateCount,
-            cycleCount: cycleCount,
-            designCapacity: designCapacity,
-            maxCapacity: maxCapacity,
-            latestTemperature: latestTemperature,
-            latestVoltage: latestVoltage,
+            cycleCount: cycle?.value,
+            designCapacity: design?.value,
+            maxCapacity: maxCapacity?.value,
+            latestTemperature: latestTemperature?.value,
+            latestVoltage: latestVoltage?.value,
             firstSample: first == .distantFuture ? nil : first,
             lastSample: last == .distantPast ? nil : last,
             capacitySeries: downsample(sortedCapacity, limit: 90),
-            capacityUnit: design == nil ? "mAh" : "%",
+            capacityUnit: capacityUnit,
             temperatureSeries: downsample(sortedTemperature, limit: 90)
         )
+    }
+
+    // MARK: - 表与列
+
+    private static func candidateTables(_ names: [String]) -> [(name: String, tier: Int)] {
+        var result: [(name: String, tier: Int)] = []
+
+        for name in names {
+            let lower = name.lowercased()
+            if lower.hasPrefix("plbatteryagent") {
+                result.append((name, 100))
+            } else if lower.contains("battery") {
+                result.append((name, 80))
+            } else if lower.contains("powerlog") || lower.contains("charger") || lower.contains("charging") {
+                result.append((name, 40))
+            } else if lower.contains("energy") || lower.contains("smc") || lower.contains("thermal") {
+                result.append((name, 20))
+            }
+        }
+
+        // 同层里短名通常才是主表，子表（_EventBackward_...）排在后面
+        result.sort { lhs, rhs in
+            if lhs.tier != rhs.tier { return lhs.tier > rhs.tier }
+            return lhs.name.count < rhs.name.count
+        }
+        return Array(result.prefix(maxTablesToInspect))
+    }
+
+    private static func pickColumns(_ columns: [String]) -> [Role: String] {
+        var best: [Role: (column: String, score: Int)] = [:]
+
+        for column in columns {
+            let normalized = column.lowercased().filter { $0.isLetter || $0.isNumber }
+            guard !normalized.isEmpty else { continue }
+
+            for (role, patterns) in rolePatterns {
+                var score = 0
+                for pattern in patterns where normalized.contains(pattern.needle) {
+                    score = max(score, pattern.weight)
+                }
+                guard score > 0 else { continue }
+                if score > (best[role]?.score ?? 0) {
+                    best[role] = (column, score)
+                }
+            }
+        }
+
+        return best.mapValues { $0.column }
+    }
+
+    private static func selectSQL(for plan: Plan) -> String {
+        var roles: [Role] = [.timestamp]
+        roles.append(contentsOf: Role.allCases.filter { $0 != .timestamp && plan.mapping[$0] != nil })
+
+        let columnList = roles.compactMap { plan.mapping[$0] }.map { quote($0) }.joined(separator: ", ")
+        let order = quote(plan.mapping[.timestamp] ?? "timestamp")
+        return "SELECT \(columnList) FROM \(quote(plan.table)) ORDER BY \(order) DESC LIMIT \(maxRowsPerTable)"
+    }
+
+    /// 全盘失败时把结构摊开：表名 + 前几列。用户把这段发过来就能直接定位。
+    private static func diagnose(_ db: OpaquePointer, candidates: [(name: String, tier: Int)]) -> String {
+        let sample = candidates.prefix(4).map { candidate -> String in
+            let columns = columnsOf(db, table: candidate.name).prefix(8).joined(separator: ",")
+            return "\(candidate.name)(\(columns))"
+        }
+        return "找到 \(candidates.count) 张电池相关表，但没有一张带可用时间戳列。候选：\(sample.joined(separator: "；"))"
     }
 
     // MARK: - 单位换算
@@ -257,29 +408,7 @@ enum PowerlogReader {
         return names
     }
 
-    private static func mapRoles(_ columns: [String]) -> [Role: String] {
-        var mapping: [Role: String] = [:]
-        for column in columns {
-            let normalized = column.lowercased().filter { $0.isLetter || $0.isNumber }
-            for (role, names) in aliases where names.contains(normalized) {
-                if mapping[role] == nil { mapping[role] = column }
-            }
-        }
-        return mapping
-    }
-
-    private static func scoreOf(_ mapping: [Role: String]) -> Int {
-        var score = 0
-        if mapping[.cycleCount] != nil { score += 4 }
-        if mapping[.maxCapacity] != nil { score += 3 }
-        if mapping[.designCapacity] != nil { score += 3 }
-        if mapping[.temperature] != nil { score += 2 }
-        if mapping[.currentCapacity] != nil { score += 1 }
-        if mapping[.voltage] != nil { score += 1 }
-        return score
-    }
-
-    private static func query(_ db: OpaquePointer, _ sql: String) -> [[String: Double]] {
+    private static func query(_ db: OpaquePointer, sql: String, limit: Int) -> [[String: Double]] {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK, let statement else { return [] }
         defer { sqlite3_finalize(statement) }
@@ -291,7 +420,7 @@ enum PowerlogReader {
         }
 
         var rows: [[String: Double]] = []
-        while sqlite3_step(statement) == SQLITE_ROW {
+        while sqlite3_step(statement) == SQLITE_ROW, rows.count < limit {
             var row: [String: Double] = [:]
             for index in 0..<count where sqlite3_column_type(statement, Int32(index)) != SQLITE_NULL {
                 row[names[index]] = sqlite3_column_double(statement, Int32(index))

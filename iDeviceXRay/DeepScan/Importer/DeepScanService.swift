@@ -128,9 +128,15 @@ final class DeepScanService: @unchecked Sendable {
         // 也拿不到循环次数。这里按后缀收，PaxHeader 里的同名元数据体积很小，
         // 用 1MB 门槛把它们排除。
         var spillIndex = 0
+        // 真机包里同一份主库会出现两次：`logs/powerlogs/...` 和
+        // `sysdiagnose_xxx/logs/powerlogs/...`。按文件名去重，否则 200MB 的库白写两遍。
+        var spilledNames = Set<String>()
         scanner.spillPlan = { name, entrySize in
             guard Self.shouldSpillPowerlog(name: name, size: entrySize) else { return nil }
             guard spillIndex < 3 else { return nil }
+            let base = (name as NSString).lastPathComponent.lowercased()
+            guard spilledNames.insert(base).inserted else { return nil }
+
             spillIndex += 1
             let tag = name.lowercased().contains("powerlog") ? "main" : "aux"
             return spillDirectory.appendingPathComponent("\(tag)-\(spillIndex).PLSQL")
@@ -199,6 +205,10 @@ final class DeepScanService: @unchecked Sendable {
         }
         if powerlogSummary == nil {
             warnings.append("档案里没有可用的 powerlog，循环次数与电池历史无法核对")
+        } else if let summary = powerlogSummary, summary.cycleCount == nil {
+            // 读到了库但缺循环次数：把命中的列写出来，截图就能定位是哪张表没接上
+            let columns = summary.matchedColumns.prefix(4).joined(separator: ", ")
+            warnings.append("Powerlog 读到 \(summary.rowCount) 行，但没有循环次数字段。命中列：\(columns)")
         }
         if outcome.values.isEmpty {
             warnings.append("未能提取到有效字段，可能是系统版本差异导致日志格式变化")
@@ -274,8 +284,12 @@ final class DeepScanService: @unchecked Sendable {
     /// 却拿不到循环次数，就是这么来的。PaxHeader 里的同名条目只有几十字节，
     /// 1MB 门槛能顺手把它们排除。
     static func shouldSpillPowerlog(name: String, size: Int) -> Bool {
+        guard size >= 1_048_576 else { return false }
         let lower = name.lowercased()
-        return lower.hasSuffix(".plsql") && size >= 1_048_576
+        if lower.hasSuffix(".plsql") { return true }
+        // 兜底：万一归档里的名字仍被截断、或扩展名被改，路径本身也能定位主库。
+        // log_*.BGSQL / *.EPSQL 同目录但不含 powerlog，不会误收。
+        return lower.contains("/powerlogs/") && lower.contains("powerlog")
     }
 
     private func runPowerlogOnly(
@@ -291,7 +305,10 @@ final class DeepScanService: @unchecked Sendable {
 
         var warnings = read.notes
         if read.summary == nil {
-            warnings.append("这个数据库里没有找到 PLBatteryAgent* 电池表，可能不是 powerlog")
+            warnings.append("这个数据库里没有找到可用的电池表，可能不是 powerlog")
+        } else if let summary = read.summary, summary.cycleCount == nil {
+            let columns = summary.matchedColumns.prefix(4).joined(separator: ", ")
+            warnings.append("读到 \(summary.rowCount) 行，但没有循环次数字段。命中列：\(columns)")
         }
 
         return DeepScanResult(

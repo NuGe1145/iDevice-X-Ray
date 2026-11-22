@@ -138,12 +138,63 @@ final class PowerlogTests: XCTestCase {
         XCTAssertFalse(outcome.notes.isEmpty)
     }
 
-    func testNonPowerlogDatabaseReturnsNote() throws {
-        let url = try makeDatabase(["CREATE TABLE Something (id INTEGER PRIMARY KEY, value REAL);"])
+    /// iOS 27 的表名未必还带 PLBatteryAgent 前缀。只认前缀等于把整份历史丢掉。
+    func testReadsTableWithoutLegacyPrefix() throws {
+        let now = Date().timeIntervalSince1970
+        let sql = """
+        CREATE TABLE PowerLog_BatterySnapshot (
+            id INTEGER PRIMARY KEY, timestamp REAL, CycleCount INTEGER,
+            NominalChargeCapacity INTEGER, AppleRawMaxCapacity INTEGER
+        );
+        INSERT INTO PowerLog_BatterySnapshot VALUES (1, \(now - 3600), 301, 4400, 4100);
+        INSERT INTO PowerLog_BatterySnapshot VALUES (2, \(now), 302, 4400, 4050);
+        """
+        let url = try makeDatabase([sql])
+
+        let summary = try XCTUnwrap(PowerlogReader.read(url: url).summary)
+        XCTAssertEqual(summary.cycleCount, 302)
+        XCTAssertEqual(summary.designCapacity, 4400)
+        XCTAssertEqual(summary.maxCapacity, 4050)
+    }
+
+    /// 循环次数和容量经常不在同一张表里：容量在 EventBackward，循环次数在
+    /// UpdateBatteryInfo。只挑一张「最像」的表，就会只拿到半份数据。
+    func testMergesFieldsFromDifferentTables() throws {
+        let now = Date().timeIntervalSince1970
+        let sql = """
+        CREATE TABLE PLBatteryAgent_EventBackward_Battery (
+            id INTEGER PRIMARY KEY, timestamp REAL,
+            AppleRawMaxCapacity INTEGER, AppleRawCurrentCapacity INTEGER,
+            Temperature INTEGER, Voltage INTEGER
+        );
+        INSERT INTO PLBatteryAgent_EventBackward_Battery VALUES (1, \(now - 7200), 4200, 2100, 3010, 4000);
+        INSERT INTO PLBatteryAgent_EventBackward_Battery VALUES (2, \(now), 4150, 2000, 3060, 3960);
+
+        CREATE TABLE PLBatteryAgent_EventPoint_UpdateBatteryInfo (
+            id INTEGER PRIMARY KEY, timestamp REAL, CycleCount INTEGER, DesignCapacity INTEGER
+        );
+        INSERT INTO PLBatteryAgent_EventPoint_UpdateBatteryInfo VALUES (1, \(now - 7200), 240, 4400);
+        INSERT INTO PLBatteryAgent_EventPoint_UpdateBatteryInfo VALUES (2, \(now), 243, 4400);
+        """
+        let url = try makeDatabase([sql])
+
+        let summary = try XCTUnwrap(PowerlogReader.read(url: url).summary)
+        XCTAssertEqual(summary.cycleCount, 243)
+        XCTAssertEqual(summary.designCapacity, 4400)
+        XCTAssertEqual(summary.maxCapacity, 4150)
+        XCTAssertEqual(summary.capacityUnit, "%")
+        XCTAssertEqual(summary.capacitySeries.count, 2)
+        XCTAssertTrue(summary.table.contains("+"))
+
+        let health = try XCTUnwrap(summary.healthPercent)
+        XCTAssertEqual(health, 94.3, accuracy: 0.3)
+    }
+
+    func testNonPowerlogDatabaseReturnsNote() throws {        let url = try makeDatabase(["CREATE TABLE Something (id INTEGER PRIMARY KEY, value REAL);"])
 
         let outcome = PowerlogReader.read(url: url)
         XCTAssertNil(outcome.summary)
-        XCTAssertTrue(outcome.notes.contains { $0.contains("PLBatteryAgent") })
+        XCTAssertTrue(outcome.notes.contains { $0.contains("没有电池相关表") })
     }
 
     func testMissingFileDoesNotCrash() {
