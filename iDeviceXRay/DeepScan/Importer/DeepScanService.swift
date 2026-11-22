@@ -288,8 +288,9 @@ final class DeepScanService: @unchecked Sendable {
         let lower = name.lowercased()
         if lower.hasSuffix(".plsql") { return true }
         // 兜底：万一归档里的名字仍被截断、或扩展名被改，路径本身也能定位主库。
-        // log_*.BGSQL / *.EPSQL 同目录但不含 powerlog，不会误收。
-        return lower.contains("/powerlogs/") && lower.contains("powerlog")
+        // 只看文件名，不看目录——`logs/powerlogs/` 里的 BGSQL / EPSQL 也带这段路径。
+        let base = (lower as NSString).lastPathComponent
+        return lower.contains("/powerlogs/") && base.contains("powerlog")
     }
 
     private func runPowerlogOnly(
